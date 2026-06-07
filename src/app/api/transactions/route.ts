@@ -1,0 +1,113 @@
+import { NextRequest } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+
+const transactionSchema = z.object({
+  type: z.enum(["RECEITA", "DESPESA"]),
+  description: z.string().min(1),
+  amount: z.number().positive(),
+  date: z.string(),
+  categoryId: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export async function GET(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return Response.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const type = searchParams.get("type");
+  const categoryId = searchParams.get("categoryId");
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const search = searchParams.get("search");
+  const page = parseInt(searchParams.get("page") ?? "1");
+  const limit = parseInt(searchParams.get("limit") ?? "20");
+
+  const where: Record<string, unknown> = {
+    userId: session.user.id,
+  };
+
+  if (type) where.type = type;
+  if (categoryId) where.categoryId = categoryId;
+  if (search) {
+    where.description = { contains: search };
+  }
+  if (startDate || endDate) {
+    where.date = {};
+    if (startDate) (where.date as Record<string, unknown>).gte = new Date(startDate);
+    if (endDate) (where.date as Record<string, unknown>).lte = new Date(endDate + "T23:59:59");
+  }
+
+  const [transactions, total] = await Promise.all([
+    prisma.transaction.findMany({
+      where,
+      include: { category: true },
+      orderBy: { date: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.transaction.count({ where }),
+  ]);
+
+  return Response.json({ transactions, total, page, limit });
+}
+
+export async function PATCH(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return Response.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const { ids, categoryId } = body as { ids: string[]; categoryId: string | null };
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return Response.json({ error: "IDs inválidos" }, { status: 400 });
+  }
+
+  await prisma.transaction.updateMany({
+    where: { userId: session.user.id, id: { in: ids } },
+    data: { categoryId: categoryId ?? null },
+  });
+
+  return Response.json({ updated: ids.length });
+}
+
+export async function POST(request: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return Response.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const validated = transactionSchema.safeParse(body);
+
+  if (!validated.success) {
+    return Response.json(
+      { error: "Dados inválidos", details: validated.error.issues },
+      { status: 400 }
+    );
+  }
+
+  const { type, description, amount, date, categoryId, notes } = validated.data;
+
+  const transaction = await prisma.transaction.create({
+    data: {
+      userId: session.user.id,
+      type,
+      description,
+      amount,
+      date: new Date(date),
+      categoryId: categoryId ?? null,
+      notes: notes ?? null,
+      source: "MANUAL",
+    },
+    include: { category: true },
+  });
+
+  return Response.json(transaction, { status: 201 });
+}

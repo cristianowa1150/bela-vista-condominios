@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+/* ── Theme tokens ────────────────────────────────────────────────────────── */
+:root,
+[data-theme="light"] {
+  --bg-page:      #f9fafb;
+  --bg-card:      #ffffff;
+  --bg-muted:     #f3f4f6;
+  --border:       #e5e7eb;
+  --border-light: #f3f4f6;
+  --text-1:       #111827;
+  --text-2:       #374151;
+  --text-3:       #6b7280;
+  --text-4:       #9ca3af;
+}
+
+[data-theme="dark"] {
+  --bg-page:      #0f172a;
+  --bg-card:      #1e293b;
+  --bg-muted:     #334155;
+  --border:       #334155;
+  --border-light: #1e293b;
+  --text-1:       #f1f5f9;
+  --text-2:       #e2e8f0;
+  --text-3:       #94a3b8;
+  --text-4:       #64748b;
+}
+
+[data-theme="sepia"] {
+  --bg-page:      #f5efe6;
+  --bg-card:      #fdf8f0;
+  --bg-muted:     #ede6da;
+  --border:       #d6cfc2;
+  --border-light: #ede6da;
+  --text-1:       #2c1a0e;
+  --text-2:       #4a3728;
+  --text-3:       #7c6752;
+  --text-4:       #a09280;
+}
+
+/* ── Global base ─────────────────────────────────────────────────────────── */
+body {
+  background-color: var(--bg-page) !important;
+  color: var(--text-1) !important;
+}
+
+/* ── Tailwind class overrides — !important garante ganhar sobre @layer ───── */
+
+/* backgrounds */
+[data-theme] .bg-white    { background-color: var(--bg-card)  !important; }
+[data-theme] .bg-gray-50  { background-color: var(--bg-page)  !important; }
+[data-theme] .bg-gray-100 { background-color: var(--bg-muted) !important; }
+
+/* hover backgrounds */
+[data-theme] .hover\:bg-gray-50:hover  { background-color: var(--bg-muted) !important; }
+[data-theme] .hover\:bg-gray-100:hover { background-color: var(--bg-muted) !important; }
+
+/* borders */
+[data-theme] .border-gray-200 { border-color: var(--border)       !important; }
+[data-theme] .border-gray-100 { border-color: var(--border-light) !important; }
+
+/* text */
+[data-theme] .text-gray-900 { color: var(--text-1) !important; }
+[data-theme] .text-gray-800 { color: var(--text-2) !important; }
+[data-theme] .text-gray-700 { color: var(--text-2) !important; }
+[data-theme] .text-gray-600 { color: var(--text-3) !important; }
+[data-theme] .text-gray-500 { color: var(--text-3) !important; }
+[data-theme] .text-gray-400 { color: var(--text-4) !important; }
+
+/* inputs and selects */
+[data-theme] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+[data-theme] select,
+[data-theme] textarea {
+  background-color: var(--bg-card)  !important;
+  color:            var(--text-1)   !important;
+  border-color:     var(--border)   !important;
+}
+[data-theme] input::placeholder,
+[data-theme] textarea::placeholder {
+  color: var(--text-4) !important;
+}
+
+/* dividers */
+[data-theme] .divide-gray-50  > * + * { border-color: var(--border-light) !important; }
+[data-theme] .divide-gray-100 > * + * { border-color: var(--border-light) !important; }
+[data-theme] .divide-gray-200 > * + * { border-color: var(--border)       !important; }
+
+/* ── Sidebar transition ──────────────────────────────────────────────────── */
+.sidebar-transition {
+  transition: width 200ms ease, transform 200ms ease;
+}
+
+* { box-sizing: border-box; }
