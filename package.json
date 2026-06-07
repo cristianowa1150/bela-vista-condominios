@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node --experimental-sqlite node_modules/next/dist/bin/next dev",
+    "dev": "node --experimental-sqlite --max-http-header-size=32768 node_modules/next/dist/bin/next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "node --max-http-header-size=32768 node_modules/next/dist/bin/next start"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
