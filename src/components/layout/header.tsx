@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import { LogOut, User, Shield, Menu, Camera, Trash2, X } from "lucide-react";
 import ThemeSelector from "./theme-selector";
 import PalettePicker from "./palette-picker";
+import FaviconPicker from "./favicon-picker";
 import { SidebarPalette } from "./sidebar-palettes";
 import { compressImage } from "@/lib/compress-image";
 
@@ -95,6 +96,7 @@ export default function Header({ user, onMobileMenuToggle, onAvatarChange, onPal
       </div>
 
       <div className="flex items-center gap-1">
+        <FaviconPicker />
         <PalettePicker collapsed={false} onPaletteChange={onPaletteChange} _headerMode />
         <ThemeSelector />
 
