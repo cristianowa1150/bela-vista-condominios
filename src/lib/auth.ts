@@ -54,11 +54,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           const valid = await bcrypt.compare(password, row.password);
           if (!valid) return null;
 
+          // Do NOT include image in the JWT — base64 avatars can be 50KB+
+          // which makes the cookie exceed the 8KB HTTP header limit (HTTP 431).
+          // The image is fetched directly from the DB in the dashboard layout.
           return {
             id: row.id,
             name: row.name,
             email: row.email,
-            image: row.image,
+            image: null,
             role: row.role,
           };
         } catch (err) {
@@ -133,6 +136,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           | "USER"
           | "PENDING"
           | "REJECTED";
+        // Strip image from session to keep cookie small.
+        // Image is loaded from the DB in the dashboard layout server component.
+        if (
+          typeof session.user.image === "string" &&
+          session.user.image.startsWith("data:")
+        ) {
+          session.user.image = null;
+        }
       }
       return session;
     },
