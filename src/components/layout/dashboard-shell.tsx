@@ -6,6 +6,7 @@ import Header from "./header";
 import {
   SidebarPalette,
   DEFAULT_PALETTE,
+  SIDEBAR_PALETTES,
   loadPalette,
   paletteToVars,
 } from "./sidebar-palettes";
@@ -29,6 +30,8 @@ function applyPaletteToRoot(p: SidebarPalette) {
     root.style.setProperty(k, v);
   }
 }
+
+const CRYSTAL_PALETTE = SIDEBAR_PALETTES.find((p) => p.id === "crystal") ?? DEFAULT_PALETTE;
 
 export default function DashboardShell({ role, user, children }: DashboardShellProps) {
   // Always start with deterministic defaults — localStorage is read in useEffect
@@ -66,6 +69,48 @@ export default function DashboardShell({ role, user, children }: DashboardShellP
     applyPaletteToRoot(p);
     try { localStorage.setItem("sidebar-palette", p.id); } catch {}
   }
+
+  /**
+   * When the user switches to Apple theme, auto-apply the Crystal palette
+   * (light sidebar) so the glass effect looks right.
+   * When switching away from Apple, restore the previous non-crystal palette.
+   */
+  useEffect(() => {
+    function onThemeChange() {
+      const theme = document.documentElement.getAttribute("data-theme");
+      if (theme === "apple") {
+        // Switch to Crystal palette for the light glass sidebar
+        const prev = loadPalette();
+        if (prev.id !== "crystal") {
+          try { localStorage.setItem("sidebar-palette-before-apple", prev.id); } catch {}
+        }
+        handlePaletteChange(CRYSTAL_PALETTE);
+        setPalette(CRYSTAL_PALETTE);
+      } else {
+        // Restore palette from before Apple was applied
+        try {
+          const beforeId = localStorage.getItem("sidebar-palette-before-apple");
+          if (beforeId) {
+            const found = SIDEBAR_PALETTES.find((p) => p.id === beforeId);
+            if (found) {
+              handlePaletteChange(found);
+              setPalette(found);
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // Watch for data-theme attribute mutations
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.attributeName === "data-theme") onThemeChange();
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleSidebarLogoChange(dataUrl: string | null) {
     setSidebarLogo(dataUrl);

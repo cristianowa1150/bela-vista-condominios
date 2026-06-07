@@ -47,52 +47,221 @@
   --text-4:       #a09280;
 }
 
+[data-theme="apple"] {
+  --bg-page:      transparent;
+  --bg-card:      rgba(255,255,255,0.72);
+  --bg-muted:     rgba(230,238,255,0.55);
+  --border:       rgba(180,200,255,0.40);
+  --border-light: rgba(210,225,255,0.30);
+  --text-1:       #1c1c1e;
+  --text-2:       #3a3a3c;
+  --text-3:       #636366;
+  --text-4:       #aeaeb2;
+}
+
 /* ── Global base ─────────────────────────────────────────────────────────── */
 body {
   background-color: var(--bg-page) !important;
   color: var(--text-1) !important;
 }
 
-/* ── Tailwind class overrides — !important garante ganhar sobre @layer ───── */
+/* ── Apple theme — body gradient + system font ───────────────────────────── */
+[data-theme="apple"] body {
+  background:
+    linear-gradient(135deg, #ccd7f5 0%, #d8d0f5 35%, #c7e4f5 68%, #ccf2eb 100%)
+    fixed !important;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Helvetica Neue", Arial, sans-serif !important;
+}
+
+/* Glass cards */
+[data-theme="apple"] .bg-white {
+  background:              rgba(255,255,255,0.72) !important;
+  backdrop-filter:         blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border-color:            rgba(255,255,255,0.75) !important;
+  box-shadow:
+    0 4px 24px rgba(0,30,120,0.07),
+    inset 0 1px 0 rgba(255,255,255,0.9) !important;
+}
+
+/* Transparent page bg so gradient shows */
+[data-theme="apple"] .bg-gray-50 {
+  background: transparent !important;
+}
+
+[data-theme="apple"] .bg-gray-100 {
+  background:              rgba(210,225,255,0.40) !important;
+  backdrop-filter:         blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+/* Glass header */
+[data-theme="apple"] header {
+  background:              rgba(255,255,255,0.78) !important;
+  backdrop-filter:         blur(32px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(200%) !important;
+  border-color:            rgba(255,255,255,0.60) !important;
+  box-shadow:              0 1px 0 rgba(180,200,255,0.25) !important;
+}
+
+/* Glass sidebar — overrides the inline backgroundColor set by palette */
+[data-theme="apple"] aside {
+  background:              rgba(232,240,255,0.82) !important;
+  backdrop-filter:         blur(32px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(200%) !important;
+}
+
+/* Glass inputs & selects */
+[data-theme="apple"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+[data-theme="apple"] select,
+[data-theme="apple"] textarea {
+  background:              rgba(255,255,255,0.65) !important;
+  backdrop-filter:         blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border-color:            rgba(155,185,255,0.55) !important;
+  border-radius:           0.75rem !important;
+  color:                   #1c1c1e !important;
+}
+[data-theme="apple"] input::placeholder,
+[data-theme="apple"] textarea::placeholder {
+  color: #aeaeb2 !important;
+}
+
+/* Borders */
+[data-theme="apple"] .border-gray-200 { border-color: rgba(180,205,255,0.45) !important; }
+[data-theme="apple"] .border-gray-100 { border-color: rgba(210,225,255,0.35) !important; }
+
+/* Dividers */
+[data-theme="apple"] .divide-gray-50  > * + * { border-color: rgba(210,225,255,0.30) !important; }
+[data-theme="apple"] .divide-gray-100 > * + * { border-color: rgba(210,225,255,0.35) !important; }
+[data-theme="apple"] .divide-gray-200 > * + * { border-color: rgba(180,205,255,0.40) !important; }
+
+/* Hover states */
+[data-theme="apple"] .hover\:bg-gray-50:hover  { background: rgba(240,245,255,0.60) !important; }
+[data-theme="apple"] .hover\:bg-gray-100:hover { background: rgba(225,235,255,0.55) !important; }
+
+/* Text colors */
+[data-theme="apple"] .text-gray-900 { color: var(--text-1) !important; }
+[data-theme="apple"] .text-gray-800 { color: var(--text-2) !important; }
+[data-theme="apple"] .text-gray-700 { color: var(--text-2) !important; }
+[data-theme="apple"] .text-gray-600 { color: var(--text-3) !important; }
+[data-theme="apple"] .text-gray-500 { color: var(--text-3) !important; }
+[data-theme="apple"] .text-gray-400 { color: var(--text-4) !important; }
+
+/* Loading overlay glass */
+[data-theme="apple"] .bg-white\/40 {
+  background:              rgba(200,218,255,0.30) !important;
+  backdrop-filter:         blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+}
+
+/* Slightly more rounded corners in Apple mode */
+[data-theme="apple"] .rounded-xl  { border-radius: 1.1rem !important; }
+[data-theme="apple"] .rounded-2xl { border-radius: 1.35rem !important; }
+[data-theme="apple"] .rounded-lg  { border-radius: 0.9rem !important; }
+
+/* Category colored badges / pills keep their colors */
+[data-theme="apple"] .bg-indigo-50  { background: rgba(238,240,255,0.80) !important; }
+[data-theme="apple"] .bg-green-50   { background: rgba(236,253,245,0.80) !important; }
+[data-theme="apple"] .bg-red-50     { background: rgba(254,242,242,0.80) !important; }
+[data-theme="apple"] .bg-blue-50    { background: rgba(239,246,255,0.80) !important; }
+[data-theme="apple"] .bg-amber-50   { background: rgba(255,251,235,0.80) !important; }
+
+/* ── Tailwind class overrides — light/dark/sepia themes ──────────────────── */
 
 /* backgrounds */
-[data-theme] .bg-white    { background-color: var(--bg-card)  !important; }
-[data-theme] .bg-gray-50  { background-color: var(--bg-page)  !important; }
-[data-theme] .bg-gray-100 { background-color: var(--bg-muted) !important; }
+[data-theme="light"] .bg-white,
+[data-theme="dark"]  .bg-white,
+[data-theme="sepia"] .bg-white    { background-color: var(--bg-card)  !important; }
+
+[data-theme="light"] .bg-gray-50,
+[data-theme="dark"]  .bg-gray-50,
+[data-theme="sepia"] .bg-gray-50  { background-color: var(--bg-page)  !important; }
+
+[data-theme="light"] .bg-gray-100,
+[data-theme="dark"]  .bg-gray-100,
+[data-theme="sepia"] .bg-gray-100 { background-color: var(--bg-muted) !important; }
 
 /* hover backgrounds */
-[data-theme] .hover\:bg-gray-50:hover  { background-color: var(--bg-muted) !important; }
-[data-theme] .hover\:bg-gray-100:hover { background-color: var(--bg-muted) !important; }
+[data-theme="light"] .hover\:bg-gray-50:hover,
+[data-theme="dark"]  .hover\:bg-gray-50:hover,
+[data-theme="sepia"] .hover\:bg-gray-50:hover  { background-color: var(--bg-muted) !important; }
+
+[data-theme="light"] .hover\:bg-gray-100:hover,
+[data-theme="dark"]  .hover\:bg-gray-100:hover,
+[data-theme="sepia"] .hover\:bg-gray-100:hover { background-color: var(--bg-muted) !important; }
 
 /* borders */
-[data-theme] .border-gray-200 { border-color: var(--border)       !important; }
-[data-theme] .border-gray-100 { border-color: var(--border-light) !important; }
+[data-theme="light"] .border-gray-200,
+[data-theme="dark"]  .border-gray-200,
+[data-theme="sepia"] .border-gray-200 { border-color: var(--border)       !important; }
+
+[data-theme="light"] .border-gray-100,
+[data-theme="dark"]  .border-gray-100,
+[data-theme="sepia"] .border-gray-100 { border-color: var(--border-light) !important; }
 
 /* text */
-[data-theme] .text-gray-900 { color: var(--text-1) !important; }
-[data-theme] .text-gray-800 { color: var(--text-2) !important; }
-[data-theme] .text-gray-700 { color: var(--text-2) !important; }
-[data-theme] .text-gray-600 { color: var(--text-3) !important; }
-[data-theme] .text-gray-500 { color: var(--text-3) !important; }
-[data-theme] .text-gray-400 { color: var(--text-4) !important; }
+[data-theme="light"] .text-gray-900,
+[data-theme="dark"]  .text-gray-900,
+[data-theme="sepia"] .text-gray-900 { color: var(--text-1) !important; }
+
+[data-theme="light"] .text-gray-800,
+[data-theme="dark"]  .text-gray-800,
+[data-theme="sepia"] .text-gray-800 { color: var(--text-2) !important; }
+
+[data-theme="light"] .text-gray-700,
+[data-theme="dark"]  .text-gray-700,
+[data-theme="sepia"] .text-gray-700 { color: var(--text-2) !important; }
+
+[data-theme="light"] .text-gray-600,
+[data-theme="dark"]  .text-gray-600,
+[data-theme="sepia"] .text-gray-600 { color: var(--text-3) !important; }
+
+[data-theme="light"] .text-gray-500,
+[data-theme="dark"]  .text-gray-500,
+[data-theme="sepia"] .text-gray-500 { color: var(--text-3) !important; }
+
+[data-theme="light"] .text-gray-400,
+[data-theme="dark"]  .text-gray-400,
+[data-theme="sepia"] .text-gray-400 { color: var(--text-4) !important; }
 
 /* inputs and selects */
-[data-theme] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-[data-theme] select,
-[data-theme] textarea {
+[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+[data-theme="dark"]  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+[data-theme="sepia"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+[data-theme="light"] select,
+[data-theme="dark"]  select,
+[data-theme="sepia"] select,
+[data-theme="light"] textarea,
+[data-theme="dark"]  textarea,
+[data-theme="sepia"] textarea {
   background-color: var(--bg-card)  !important;
   color:            var(--text-1)   !important;
   border-color:     var(--border)   !important;
 }
-[data-theme] input::placeholder,
-[data-theme] textarea::placeholder {
+[data-theme="light"] input::placeholder,
+[data-theme="dark"]  input::placeholder,
+[data-theme="sepia"] input::placeholder,
+[data-theme="light"] textarea::placeholder,
+[data-theme="dark"]  textarea::placeholder,
+[data-theme="sepia"] textarea::placeholder {
   color: var(--text-4) !important;
 }
 
 /* dividers */
-[data-theme] .divide-gray-50  > * + * { border-color: var(--border-light) !important; }
-[data-theme] .divide-gray-100 > * + * { border-color: var(--border-light) !important; }
-[data-theme] .divide-gray-200 > * + * { border-color: var(--border)       !important; }
+[data-theme="light"] .divide-gray-50  > * + *,
+[data-theme="dark"]  .divide-gray-50  > * + *,
+[data-theme="sepia"] .divide-gray-50  > * + * { border-color: var(--border-light) !important; }
+
+[data-theme="light"] .divide-gray-100 > * + *,
+[data-theme="dark"]  .divide-gray-100 > * + *,
+[data-theme="sepia"] .divide-gray-100 > * + * { border-color: var(--border-light) !important; }
+
+[data-theme="light"] .divide-gray-200 > * + *,
+[data-theme="dark"]  .divide-gray-200 > * + *,
+[data-theme="sepia"] .divide-gray-200 > * + * { border-color: var(--border)       !important; }
 
 /* ── Sidebar transition ──────────────────────────────────────────────────── */
 .sidebar-transition {

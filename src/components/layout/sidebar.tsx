@@ -189,8 +189,8 @@ function SidebarContent(props: ContentProps) {
             />
 
             <div className="min-w-0 flex-1">
-              <p className="font-semibold text-sm leading-tight text-white truncate">Bela Vista</p>
-              <p className="text-xs truncate" style={{ color: "var(--sb-text-nav)" }}>Ibiá - MG</p>
+              <p className="font-semibold text-sm leading-tight truncate" style={{ color: "var(--sb-text-nav)" }}>Bela Vista</p>
+              <p className="text-xs truncate" style={{ color: "var(--sb-text-muted)" }}>Ibiá - MG</p>
             </div>
           </div>
         )}

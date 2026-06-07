@@ -3,12 +3,27 @@
 import { useState, useEffect, useRef } from "react";
 import { Sun, Moon, Coffee } from "lucide-react";
 
-type Theme = "light" | "dark" | "sepia";
+type Theme = "light" | "dark" | "sepia" | "apple";
+
+/* Apple logo SVG inline — sem dependência de ícone externo */
+function AppleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.7 9.05 7.4c1.29.07 2.22.79 2.97.79.79 0 2.26-.97 3.8-.83 1.65.14 2.87.87 3.66 2.18-3.36 1.98-2.79 6.36.57 7.54-.35.91-.82 1.83-1.37 2.73zm-4.2-14.36c-.13 1.72 1.25 3.15 2.89 3.15.14-1.75-1.26-3.11-2.89-3.15z" />
+    </svg>
+  );
+}
 
 const THEMES: { value: Theme; label: string; icon: React.ElementType }[] = [
-  { value: "light", label: "Claro", icon: Sun },
+  { value: "light", label: "Claro",  icon: Sun },
   { value: "dark",  label: "Escuro", icon: Moon },
-  { value: "sepia", label: "Sépia", icon: Coffee },
+  { value: "sepia", label: "Sépia",  icon: Coffee },
+  { value: "apple", label: "Apple",  icon: AppleIcon },
 ];
 
 export default function ThemeSelector() {
@@ -55,8 +70,10 @@ export default function ThemeSelector() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 border rounded-xl shadow-lg py-1 min-w-[130px] z-50"
-          style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border)" }}>
+        <div
+          className="absolute right-0 top-full mt-1 border rounded-xl shadow-lg py-1 min-w-[140px] z-50"
+          style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border)" }}
+        >
           {THEMES.map(({ value, label, icon: ItemIcon }) => (
             <button
               key={value}
@@ -70,7 +87,9 @@ export default function ThemeSelector() {
             >
               <ItemIcon className="w-4 h-4 shrink-0" />
               {label}
-              {theme === value && <span className="ml-auto text-indigo-600 text-xs">✓</span>}
+              {theme === value && (
+                <span className="ml-auto text-indigo-600 text-xs">✓</span>
+              )}
             </button>
           ))}
         </div>

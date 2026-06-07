@@ -28,8 +28,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{
+var VALID=["light","dark","sepia","apple"];
 var t=localStorage.getItem("theme");
-if(t)document.documentElement.setAttribute("data-theme",t);
+if(t&&VALID.indexOf(t)!==-1)document.documentElement.setAttribute("data-theme",t);
 var pmap=${JSON.stringify(PALETTE_VARS_MAP)};
 var pid=localStorage.getItem("sidebar-palette");
 if(pid&&pmap[pid]){var vars=pmap[pid];var r=document.documentElement;for(var k in vars)r.style.setProperty(k,vars[k]);}

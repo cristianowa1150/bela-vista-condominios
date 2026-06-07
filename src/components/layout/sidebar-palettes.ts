@@ -117,6 +117,19 @@ export const SIDEBAR_PALETTES: SidebarPalette[] = [
     accentLight: "#ccfbf1",
     accentText: "#0f766e",
   },
+  {
+    id: "crystal",
+    name: "Cristal",
+    bg: "#dce8fb",          // cor opaca para o swatch — CSS do Apple tema sobrepõe com rgba
+    active: "rgba(79,100,235,0.82)",
+    hover: "rgba(79,100,235,0.10)",
+    border: "rgba(170,195,255,0.50)",
+    textNav: "#2d3d9a",
+    textMuted: "#5c70c0",
+    accent: "#4f64eb",
+    accentLight: "rgba(79,100,235,0.12)",
+    accentText: "#3348d0",
+  },
 ];
 
 export const DEFAULT_PALETTE = SIDEBAR_PALETTES[0];
