@@ -3,8 +3,17 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
+// ─── Provider ──────────────────────────────────────────────────────────────
+// Desenvolvimento local:  provider = "sqlite"
+// Produção (MySQL/Linux): provider = "mysql"
+//
+// Para migrar para MySQL:
+//   1. Troque para provider = "mysql"
+//   2. Atualize DATABASE_URL em .env.local para mysql://user:pass@host:3306/db
+//   3. Execute: npm run db:generate && npm run db:deploy
+// ───────────────────────────────────────────────────────────────────────────
 datasource db {
-  provider = "mysql"
+  provider = "sqlite"
 }
 
 model Account {
@@ -13,12 +22,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -38,7 +47,7 @@ model User {
   name          String?
   email         String?         @unique
   emailVerified DateTime?
-  image         String?         @db.LongText
+  image         String?
   role          String          @default("PENDING")
   password      String?
   accounts      Account[]
@@ -79,7 +88,7 @@ model Transaction {
   source      String         @default("MANUAL")
   importId    String?
   import      ImportHistory? @relation(fields: [importId], references: [id])
-  notes       String?        @db.Text
+  notes       String?
   user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -93,7 +102,7 @@ model AccountStatement {
   totalDespesas Float     @default(0)
   resultado     Float     @default(0)
   status        String    @default("ABERTA")
-  notes         String?   @db.Text
+  notes         String?
   closedAt      DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -106,7 +115,7 @@ model ImportHistory {
   fileType     String
   recordCount  Int
   status       String        @default("SUCCESS")
-  errorMessage String?       @db.Text
+  errorMessage String?
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   createdAt    DateTime      @default(now())
