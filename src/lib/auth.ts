@@ -5,64 +5,47 @@ import GitHub from "next-auth/providers/github";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
-import path from "path";
-import { DatabaseSync } from "node:sqlite";
 import { prisma } from "./prisma";
-
-function dbFilePath(): string {
-  const url = process.env.DATABASE_URL ?? "";
-  const raw = url.startsWith("file:") ? url.slice(5) : url;
-  return path.resolve(raw || "dev.db");
-}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   providers: [
-    // ── Local admin (email + password) ──────────────────────────────
+    // ── Local credentials (e-mail + senha) ──────────────────────────
     Credentials({
       id: "credentials",
       name: "E-mail e senha",
       credentials: {
-        email: { label: "E-mail", type: "email" },
-        password: { label: "Senha", type: "password" },
+        email:    { label: "E-mail", type: "email" },
+        password: { label: "Senha",  type: "password" },
       },
       async authorize(credentials) {
-        const email = (credentials?.email as string | undefined)?.trim().toLowerCase();
-        const password = credentials?.password as string | undefined;
+        const email    = (credentials?.email    as string | undefined)?.trim().toLowerCase();
+        const password =  credentials?.password as string | undefined;
 
         if (!email || !password) return null;
 
         try {
-          const db = new DatabaseSync(dbFilePath());
-          const row = db
-            .prepare(
-              'SELECT id, name, email, image, role, password FROM "User" WHERE email = ? LIMIT 1'
-            )
-            .get(email) as {
-              id: string;
-              name: string | null;
-              email: string;
-              image: string | null;
-              role: string;
-              password: string | null;
-            } | undefined;
-          db.close();
+          // Use Prisma — works with any database (MySQL, PostgreSQL, SQLite)
+          const user = await prisma.user.findUnique({
+            where: { email },
+            select: { id: true, name: true, email: true, role: true, password: true },
+          });
 
-          if (!row?.password) return null;
+          if (!user?.password) return null;
 
-          const valid = await bcrypt.compare(password, row.password);
+          const valid = await bcrypt.compare(password, user.password);
           if (!valid) return null;
 
-          // Do NOT include image in the JWT — base64 avatars can be 50KB+
+          // Do NOT include image in JWT — base64 avatars can be 50KB+
           // which makes the cookie exceed the 8KB HTTP header limit (HTTP 431).
-          // The image is fetched directly from the DB in the dashboard layout.
+          // Image is fetched directly from DB in the dashboard layout server component.
           return {
-            id: row.id,
-            name: row.name,
-            email: row.email,
+            id:    user.id,
+            name:  user.name,
+            email: user.email,
             image: null,
-            role: row.role,
+            role:  user.role,
           };
         } catch (err) {
           console.error("[auth] authorize error:", err);
@@ -73,23 +56,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
     // ── OAuth providers ──────────────────────────────────────────────
     Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientId:     process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
     GitHub({
-      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientId:     process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     }),
     MicrosoftEntraID({
-      clientId: process.env.AZURE_AD_CLIENT_ID!,
+      clientId:     process.env.AZURE_AD_CLIENT_ID!,
       clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
       issuer: `https://login.microsoftonline.com/${process.env.AZURE_AD_TENANT_ID ?? "common"}/v2.0`,
     }),
   ],
+
   pages: {
     signIn: "/login",
   },
+
   events: {
+    // First registered user automatically becomes ADMIN
     async createUser({ user }) {
       try {
         const othersCount = await prisma.user.count({
@@ -98,7 +84,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (othersCount === 0) {
           await prisma.user.update({
             where: { id: user.id },
-            data: { role: "ADMIN" },
+            data:  { role: "ADMIN" },
           });
         }
       } catch (err) {
@@ -106,6 +92,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
     },
   },
+
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
@@ -116,7 +103,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         } else {
           try {
             const dbUser = await prisma.user.findUnique({
-              where: { id: user.id! },
+              where:  { id: user.id! },
               select: { role: true },
             });
             token.role = dbUser?.role ?? "PENDING";
@@ -130,14 +117,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
     session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
+        session.user.id   = token.id as string;
         session.user.role = (token.role as string ?? "PENDING") as
-          | "ADMIN"
-          | "USER"
-          | "PENDING"
-          | "REJECTED";
-        // Strip image from session to keep cookie small.
-        // Image is loaded from the DB in the dashboard layout server component.
+          | "ADMIN" | "USER" | "PENDING" | "REJECTED";
+        // Strip image from session to keep JWT cookie small
         if (
           typeof session.user.image === "string" &&
           session.user.image.startsWith("data:")

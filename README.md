@@ -1,6 +1,11 @@
 # 🏢 Condomínio Bela Vista — Sistema de Gestão Financeira
 
-Sistema web completo de gestão financeira para condomínios, desenvolvido com Next.js 16, Prisma, NextAuth e Tailwind CSS v4.
+[![Versão](https://img.shields.io/badge/versão-1.0.0-blue)](./CHANGELOG.md)
+[![Licença](https://img.shields.io/badge/licença-CC%20BY%204.0-green)](./LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
+[![MySQL](https://img.shields.io/badge/banco-MySQL%208-orange)](https://mysql.com)
+
+Sistema web completo de gestão financeira para condomínios, com dashboard, transações, relatórios, importação de extratos e controle de acesso por perfis.
 
 > **Licença:** [Creative Commons Attribution 4.0 International (CC BY 4.0)](./LICENSE) — use, adapte e distribua livremente dando os devidos créditos.
 
@@ -8,16 +13,16 @@ Sistema web completo de gestão financeira para condomínios, desenvolvido com N
 
 ## ✨ Funcionalidades
 
-- **Dashboard** com gráficos de receitas, despesas, saldo e categorias
-- **Transações** — cadastro, edição, filtro por período e paginação até 300 registros
+- **Dashboard** com gráficos de receitas, despesas, saldo e categorias por período
+- **Transações** — cadastro, edição, filtro por período, paginação até 300 registros
 - **Importação** de extratos bancários via CSV/OFX
 - **Prestação de Contas** — relatórios mensais por caixa/banco
 - **Relatórios** — exportação em PDF e Excel
 - **Categorias** personalizadas com cores
-- **Administração** de usuários com perfis: Administrador, Operador Completo, Operador, Somente Leitura, Rejeitado
+- **Perfis de acesso**: Administrador, Operador Completo, Operador, Somente Leitura, Rejeitado
 - **Autenticação** local (e-mail + senha) e OAuth (Google, GitHub, Microsoft)
 - **Temas visuais**: Claro, Escuro, Sépia, Apple (glassmorphism)
-- **Personalização**: 9 paletas de cores para o menu, foto de perfil, ícone do menu, favicon da aba e fundo da tela de login (Bing foto do dia)
+- **Personalização**: 9 paletas de menu, foto de perfil, ícone do menu, favicon e fundo de login (Bing foto do dia)
 
 ---
 
@@ -25,161 +30,333 @@ Sistema web completo de gestão financeira para condomínios, desenvolvido com N
 
 | Camada | Tecnologia |
 |---|---|
-| Framework | [Next.js 16](https://nextjs.org/) — App Router |
+| Framework | Next.js 16 — App Router |
 | Linguagem | TypeScript 5 |
 | Estilo | Tailwind CSS v4 |
 | ORM | Prisma 7 |
-| Banco de dados | SQLite (`dev.db`) em desenvolvimento |
-| Autenticação | NextAuth v5 (beta) — JWT strategy |
+| Banco | MySQL 8 (produção) · SQLite (desenvolvimento opcional) |
+| Autenticação | NextAuth v5 beta — JWT strategy |
 | Gráficos | Recharts |
-| PDF | jsPDF |
-| Excel | xlsx + PapaParse |
+| PDF / Excel | jsPDF · xlsx + PapaParse |
 
 ---
 
 ## 📋 Pré-requisitos
 
-Antes de começar, você precisa ter instalado:
-
-- **Node.js** ≥ 20.x — [nodejs.org](https://nodejs.org)
-- **npm** ≥ 10 (vem com o Node.js)
-- **Git** — [git-scm.com](https://git-scm.com)
-
-Verifique as versões:
+| Ferramenta | Versão mínima |
+|---|---|
+| Node.js | 20.x |
+| npm | 10.x |
+| MySQL | 8.x (produção) |
+| Git | qualquer |
 
 ```bash
-node -v   # deve ser v20.x ou superior
-npm -v    # deve ser v10.x ou superior
-git -v
+node -v && npm -v && git -v
 ```
 
 ---
 
-## 🚀 Instalação e configuração
+## 🚀 Desenvolvimento local
 
-### 1. Clone o repositório
+### 1. Clone e instale
 
 ```bash
 git clone https://github.com/cristianowa1150/bela-vista-condominios.git
 cd bela-vista-condominios
-```
-
-### 2. Instale as dependências
-
-```bash
 npm install
 ```
 
-### 3. Configure as variáveis de ambiente
+### 2. Configure `.env.local`
 
-Crie o arquivo `.env.local` na raiz do projeto (nunca commite este arquivo):
+```bash
+cp .env.local.example .env.local
+```
+
+Edite `.env.local` com os valores do seu ambiente.  
+**Mínimo para rodar localmente** (com MySQL):
 
 ```env
-# Banco de dados SQLite
-DATABASE_URL="file:./dev.db"
-
-# Segredo do NextAuth — gere com: openssl rand -base64 32
-AUTH_SECRET="seu-segredo-aqui-minimo-32-caracteres"
-
-# ── OAuth Google (opcional) ───────────────────────────────────────────────
-# Obtenha em: https://console.cloud.google.com/apis/credentials
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
-
-# ── OAuth GitHub (opcional) ───────────────────────────────────────────────
-# Obtenha em: https://github.com/settings/developers
-GITHUB_CLIENT_ID=""
-GITHUB_CLIENT_SECRET=""
-
-# ── OAuth Microsoft (opcional) ────────────────────────────────────────────
-# Obtenha em: https://portal.azure.com → Registros de aplicativos
-AZURE_AD_CLIENT_ID=""
-AZURE_AD_CLIENT_SECRET=""
-AZURE_AD_TENANT_ID="common"
+DATABASE_URL="mysql://root:senha@localhost:3306/bela_vista"
+AUTH_SECRET="gere-com-openssl-rand-base64-32"
 ```
 
 > **Gerar AUTH_SECRET:**
 > ```bash
 > openssl rand -base64 32
-> # ou: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 > ```
 
-### 4. Configure o banco de dados
+### 3. Crie o banco e aplique as migrações
 
 ```bash
-# Gera o cliente Prisma
-npx prisma generate
+# Criar banco no MySQL
+mysql -u root -p -e "CREATE DATABASE bela_vista CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
-# Cria o banco de dados e aplica as migrações
-npx prisma migrate dev --name init
+# Gerar cliente Prisma e aplicar schema
+npm run db:generate
+npm run db:migrate
 ```
 
-### 5. Inicie o servidor de desenvolvimento
+### 4. Inicie o servidor
 
 ```bash
 npm run dev
+# → http://localhost:3000
 ```
 
-Abra [http://localhost:3000](http://localhost:3000) no navegador.
+### 5. Primeiro acesso
 
-### 6. Crie o primeiro administrador
+Acesse [http://localhost:3000/setup](http://localhost:3000/setup) para criar o administrador inicial.  
+O primeiro usuário cadastrado recebe automaticamente o perfil **Administrador**.
 
-Acesse [http://localhost:3000/setup](http://localhost:3000/setup) para criar a conta de administrador inicial.
+---
 
-> O primeiro usuário cadastrado recebe automaticamente o perfil **Administrador**.
+## 🐧 Deploy em servidor Linux com MySQL
+
+Guia completo para Ubuntu 22.04 LTS / Debian 12.  
+Substitua `seudominio.com` e os dados de banco pelos seus valores reais.
+
+### 1. Atualizar o sistema
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+### 2. Instalar Node.js 20 via NodeSource
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+node -v   # deve ser v20.x
+```
+
+### 3. Instalar MySQL 8
+
+```bash
+sudo apt install -y mysql-server
+sudo systemctl enable --now mysql
+sudo mysql_secure_installation   # configure senha root e remova usuários anônimos
+```
+
+Criar banco e usuário dedicado:
+
+```sql
+sudo mysql -u root -p
+
+CREATE DATABASE bela_vista
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+CREATE USER 'bv_user'@'localhost' IDENTIFIED BY 'SenhaForte123!';
+GRANT ALL PRIVILEGES ON bela_vista.* TO 'bv_user'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+### 4. Instalar PM2
+
+```bash
+sudo npm install -g pm2
+```
+
+### 5. Instalar Nginx
+
+```bash
+sudo apt install -y nginx
+sudo systemctl enable --now nginx
+```
+
+### 6. Clonar o projeto
+
+```bash
+sudo mkdir -p /var/www
+cd /var/www
+sudo git clone https://github.com/cristianowa1150/bela-vista-condominios.git
+sudo chown -R $USER:$USER /var/www/bela-vista-condominios
+cd bela-vista-condominios
+```
+
+### 7. Instalar dependências
+
+```bash
+npm install --omit=dev
+```
+
+### 8. Configurar variáveis de ambiente
+
+```bash
+cp .env.local.example .env.local
+nano .env.local
+```
+
+Preencha **todos** os campos:
+
+```env
+DATABASE_URL="mysql://bv_user:SenhaForte123!@localhost:3306/bela_vista"
+AUTH_SECRET="resultado-do-openssl-rand-base64-32"
+NEXTAUTH_URL="https://seudominio.com"
+
+# OAuth — configure apenas os provedores que quiser usar
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+GITHUB_CLIENT_ID=""
+GITHUB_CLIENT_SECRET=""
+AZURE_AD_CLIENT_ID=""
+AZURE_AD_CLIENT_SECRET=""
+AZURE_AD_TENANT_ID="common"
+```
+
+### 9. Gerar cliente Prisma e aplicar migrações
+
+```bash
+npm run db:generate
+npm run db:deploy     # aplica migrações sem perguntar (modo produção)
+```
+
+### 10. Build de produção
+
+```bash
+npm run build
+```
+
+### 11. Iniciar com PM2
+
+```bash
+pm2 start ecosystem.config.js --env production
+pm2 save
+pm2 startup        # exibe o comando para auto-iniciar no boot — execute-o
+
+# Verificar se está rodando:
+pm2 status
+pm2 logs bela-vista
+```
+
+### 12. Configurar Nginx como reverse proxy
+
+```bash
+sudo nano /etc/nginx/sites-available/bela-vista
+```
+
+Cole o conteúdo abaixo:
+
+```nginx
+server {
+    listen 80;
+    server_name seudominio.com www.seudominio.com;
+
+    # Redireciona HTTP → HTTPS (após configurar SSL)
+    # return 301 https://$host$request_uri;
+
+    location / {
+        proxy_pass         http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        'upgrade';
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        client_max_body_size 10M;
+    }
+}
+```
+
+Ativar o site:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/bela-vista /etc/nginx/sites-enabled/
+sudo nginx -t          # testar configuração
+sudo systemctl reload nginx
+```
+
+### 13. SSL com Let's Encrypt (HTTPS)
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d seudominio.com -d www.seudominio.com
+```
+
+Após o Certbot configurar o SSL, descomente a linha de redirect no Nginx e recarregue:
+
+```bash
+sudo systemctl reload nginx
+```
+
+O Certbot renova automaticamente via cron/systemd.
+
+### 14. Firewall (UFW)
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 'Nginx Full'
+sudo ufw enable
+sudo ufw status
+```
+
+### ✅ Checklist de produção
+
+- [ ] `AUTH_SECRET` gerado com `openssl rand -base64 32`
+- [ ] `NEXTAUTH_URL` apontando para a URL com HTTPS
+- [ ] Banco MySQL criado com usuário dedicado (não root)
+- [ ] `npm run db:deploy` executado após cada atualização
+- [ ] PM2 configurado com `pm2 startup` + `pm2 save`
+- [ ] Nginx com proxy reverso e SSL ativo
+- [ ] Firewall habilitado (apenas portas 22, 80, 443 abertas)
+- [ ] Backup automático do banco configurado
+
+---
+
+## 🔄 Atualizando o sistema em produção
+
+```bash
+cd /var/www/bela-vista-condominios
+
+# Buscar novas versões
+git pull origin main
+
+# Instalar dependências novas (se houver)
+npm install --omit=dev
+
+# Aplicar novas migrações de banco
+npm run db:deploy
+
+# Rebuild e reiniciar
+npm run build
+pm2 restart bela-vista
+```
 
 ---
 
 ## 🔐 Configuração do OAuth (opcional)
 
-A URL de callback padrão é `http://localhost:3000/api/auth/callback/<provedor>`.
+URLs de callback para produção — substitua `seudominio.com`:
+
+| Provedor | URL de callback |
+|---|---|
+| Google | `https://seudominio.com/api/auth/callback/google` |
+| GitHub | `https://seudominio.com/api/auth/callback/github` |
+| Microsoft | `https://seudominio.com/api/auth/callback/microsoft-entra-id` |
 
 ### Google
 
-1. Acesse [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
-2. Crie um projeto → **APIs e Serviços → Tela de consentimento OAuth** → tipo Externo
-3. **Credenciais → Criar credencial → ID do cliente OAuth → Aplicativo da Web**
-4. URI de redirecionamento autorizado: `http://localhost:3000/api/auth/callback/google`
-5. Copie **Client ID** e **Client Secret** para o `.env.local`
+1. [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
+2. Crie projeto → **Tela de consentimento OAuth** (externo)
+3. **Credenciais → OAuth → Aplicativo da Web**
+4. Adicione as URLs de redirecionamento (desenvolvimento e produção)
+5. Copie Client ID e Client Secret para `.env.local`
 
 ### GitHub
 
-1. Acesse [github.com/settings/developers](https://github.com/settings/developers)
-2. **New OAuth App**
-3. Authorization callback URL: `http://localhost:3000/api/auth/callback/github`
-4. Copie **Client ID** e gere um **Client Secret**
+1. [github.com/settings/developers](https://github.com/settings/developers) → **New OAuth App**
+2. Callback URL: `https://seudominio.com/api/auth/callback/github`
+3. Gere um Client Secret
 
 ### Microsoft
 
-1. Acesse [portal.azure.com](https://portal.azure.com) → **Registros de aplicativos → Novo registro**
-2. Tipos de conta: *Contas em qualquer diretório e contas pessoais Microsoft*
-3. URI de redirecionamento (Web): `http://localhost:3000/api/auth/callback/microsoft-entra-id`
-4. Copie o **ID do aplicativo** → `AZURE_AD_CLIENT_ID`
-5. **Certificados e segredos → Novo segredo** → copie o **Valor** → `AZURE_AD_CLIENT_SECRET`
-
----
-
-## 🏗️ Build para produção
-
-```bash
-npm run build
-npm run start
-```
-
-Para produção, configure também:
-- `NEXTAUTH_URL` com a URL pública do servidor (ex: `https://seudominio.com`)
-- Banco de dados em servidor dedicado (PostgreSQL recomendado)
-
-### Deploy com Docker (exemplo)
-
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY . .
-RUN npm ci && npm run build
-EXPOSE 3000
-CMD ["npm", "run", "start"]
-```
+1. [portal.azure.com](https://portal.azure.com) → **Registros de aplicativos → Novo registro**
+2. Tipos de conta: *Contas em qualquer diretório e contas pessoais*
+3. URI de redirecionamento: `https://seudominio.com/api/auth/callback/microsoft-entra-id`
+4. Copie ID do aplicativo + crie segredo em **Certificados e segredos**
 
 ---
 
@@ -188,34 +365,40 @@ CMD ["npm", "run", "start"]
 ```
 bela-vista-condominios/
 ├── src/
-│   ├── app/                    # Rotas e páginas (Next.js App Router)
-│   │   ├── api/                # API Routes
-│   │   │   ├── admin/          # Gerenciamento de usuários
-│   │   │   ├── bing-bg/        # Proxy imagens do dia (Bing)
-│   │   │   ├── categories/     # CRUD de categorias
-│   │   │   ├── dashboard/      # Dados do painel
-│   │   │   ├── transactions/   # CRUD de transações
-│   │   │   └── user/profile/   # Foto de perfil
-│   │   ├── dashboard/          # Páginas protegidas do sistema
-│   │   │   ├── admin/          # Administração de usuários
-│   │   │   ├── categories/     # Gestão de categorias
-│   │   │   ├── import/         # Importação de extratos
-│   │   │   ├── prestacao/      # Prestação de contas
-│   │   │   ├── reports/        # Relatórios
-│   │   │   └── transactions/   # Transações
-│   │   ├── login/              # Tela de login (fundo Bing + glass)
-│   │   └── setup/              # Cadastro do primeiro admin
+│   ├── app/
+│   │   ├── api/                  # API Routes
+│   │   │   ├── admin/            # Gerenciamento de usuários
+│   │   │   ├── bing-bg/          # Proxy fotos do dia (Bing)
+│   │   │   ├── auth/clear/       # Rota de emergência — limpa cookies
+│   │   │   ├── categories/       # CRUD categorias
+│   │   │   ├── dashboard/        # Dados do painel
+│   │   │   ├── transactions/     # CRUD transações
+│   │   │   └── user/profile/     # Foto de perfil
+│   │   ├── dashboard/            # Páginas protegidas
+│   │   │   ├── admin/            # Administração de usuários
+│   │   │   ├── categories/       # Gestão de categorias
+│   │   │   ├── import/           # Importação de extratos
+│   │   │   ├── prestacao/        # Prestação de contas
+│   │   │   ├── reports/          # Relatórios
+│   │   │   └── transactions/     # Transações
+│   │   ├── login/                # Tela de login (Bing + glass)
+│   │   └── setup/                # Cadastro do primeiro admin
 │   ├── components/
-│   │   ├── layout/             # Shell, Sidebar, Header, Temas, Favicon
-│   │   └── ui/                 # Componentes reutilizáveis
-│   └── lib/                    # Utilitários (auth, prisma, utils)
+│   │   ├── layout/               # Shell, Sidebar, Header, Temas, Favicon
+│   │   └── ui/                   # Componentes reutilizáveis
+│   └── lib/
+│       ├── auth.ts               # Configuração NextAuth
+│       ├── prisma.ts             # Instância do Prisma Client
+│       ├── compress-image.ts     # Compressão de imagens via Canvas
+│       └── utils.ts              # Utilitários
 ├── prisma/
-│   ├── schema.prisma           # Schema do banco de dados
-│   └── migrations/             # Migrações do Prisma
-├── public/                     # Arquivos estáticos
-├── .env.local                  # Variáveis de ambiente (NÃO commitado)
+│   ├── schema.prisma             # Schema MySQL
+│   └── migrations/               # Histórico de migrações
+├── ecosystem.config.js           # Configuração PM2
+├── .env.local.example            # Template de variáveis de ambiente
 ├── .gitignore
-├── LICENSE                     # CC BY 4.0
+├── CHANGELOG.md
+├── LICENSE                       # CC BY 4.0
 └── README.md
 ```
 
@@ -223,134 +406,122 @@ bela-vista-condominios/
 
 ## 🧑‍💻 Guia para colaboradores
 
-Obrigado pelo interesse em contribuir! Siga estas orientações para manter a qualidade e consistência do código.
-
 ### Fluxo de trabalho
 
 ```bash
-# 1. Faça um fork do repositório no GitHub
-
-# 2. Clone seu fork
+# Fork → clone → branch
 git clone https://github.com/SEU-USUARIO/bela-vista-condominios.git
 cd bela-vista-condominios
-
-# 3. Adicione o repositório original como upstream
 git remote add upstream https://github.com/cristianowa1150/bela-vista-condominios.git
-
-# 4. Crie uma branch para sua feature ou correção
 git checkout -b feat/nome-da-feature
-# ou
-git checkout -b fix/descricao-do-bug
 
-# 5. Desenvolva, faça commit e push
-git add .
+# Desenvolver → commit → push → PR
 git commit -m "feat: descrição clara da mudança"
 git push origin feat/nome-da-feature
-
-# 6. Abra um Pull Request para a branch main do repositório original
 ```
 
 ### Convenções de commit
-
-Usamos [Conventional Commits](https://www.conventionalcommits.org/):
 
 | Prefixo | Uso |
 |---|---|
 | `feat:` | Nova funcionalidade |
 | `fix:` | Correção de bug |
-| `refactor:` | Refatoração sem mudança de comportamento |
-| `style:` | Apenas formatação / CSS |
+| `refactor:` | Refatoração |
+| `style:` | CSS / formatação |
 | `docs:` | Documentação |
-| `chore:` | Configuração, dependências |
+| `chore:` | Dependências / config |
 
-### ⚠️ Pontos críticos — leia antes de codar
-
-> Este projeto usa **Next.js 16** com breaking changes em relação a versões anteriores.
-> Leia `node_modules/next/dist/docs/` antes de escrever qualquer código.
+### Pontos críticos — leia antes de codar
 
 | Ponto | Regra |
 |---|---|
+| **Next.js 16** | Leia `node_modules/next/dist/docs/` — há breaking changes |
 | **App Router** | Sem `pages/` — tudo em `src/app/` |
-| **Server Components** | São o padrão. Use `"use client"` só quando necessário |
-| **Hydration mismatch** | Nunca leia `localStorage` em `useState()`. Sempre use `useEffect` |
-| **Tailwind v4** | Overrides de utilitários precisam de `!important` |
-| **NextAuth v5** | JWT strategy — nunca coloque base64 de imagens no token JWT |
-| **Cookie size** | Mantenha o JWT pequeno — imagens vão no banco, não no cookie |
+| **Server Components** | Padrão; use `"use client"` só quando necessário |
+| **Hydration** | Nunca leia `localStorage` em `useState()` — use `useEffect` |
+| **Tailwind v4** | Overrides precisam de `!important` |
+| **JWT / cookies** | Nunca coloque base64 de imagens no token |
+| **MySQL** | Campos grandes precisam de `@db.Text` / `@db.LongText` no schema |
 
-### Como expandir o sistema
+### Como expandir
 
 | O que adicionar | Onde mexer |
 |---|---|
-| Novo perfil de usuário | `VALID_ROLES` em `api/admin/users/route.ts` + `ROLE_CONFIG` em `dashboard/admin/page.tsx` + `navItems` roles em `sidebar.tsx` |
-| Nova página | Array `navItems` em `sidebar.tsx` + nova pasta em `src/app/dashboard/` |
-| Novo tema visual | `globals.css` (bloco `[data-theme="nome"]`) + `theme-selector.tsx` |
-| Nova paleta de sidebar | `sidebar-palettes.ts` (auto-incluído no picker e no inline script do layout) |
-| Novo provedor OAuth | `src/lib/auth.ts` + botão em `login/page.tsx` + variáveis em `.env.local` |
+| Novo perfil de usuário | `VALID_ROLES` em `api/admin/users/route.ts` · `ROLE_CONFIG` em `admin/page.tsx` · `roles` em `sidebar.tsx` |
+| Nova página | `navItems` em `sidebar.tsx` + pasta em `src/app/dashboard/` |
+| Novo tema visual | `globals.css` (`[data-theme="nome"]`) + `theme-selector.tsx` |
+| Nova paleta sidebar | `sidebar-palettes.ts` (incluído automaticamente) |
+| Novo provedor OAuth | `auth.ts` + botão em `login/page.tsx` + vars em `.env.local` |
+| Novo modelo de banco | `schema.prisma` + `npx prisma migrate dev` |
 
 ### Verificando antes do PR
 
 ```bash
-# Build sem erros de compilação
-npm run build
-
-# Verificação de tipos TypeScript
-npx tsc --noEmit
-
-# Inspecionar banco de dados via GUI
-npx prisma studio
+npm run build        # build sem erros
+npx tsc --noEmit    # verificação de tipos
+npm run db:studio   # inspecionar banco via GUI
 ```
 
 ---
 
-## 🐛 Solução de problemas comuns
+## 🐛 Solução de problemas
 
 ### HTTP 431 — Request Header Fields Too Large
-Sessão antiga com imagem base64 no cookie.
+
+Sessão antiga com imagem base64 no cookie JWT.
 
 ```
-# Limpe os cookies acessando:
+# Limpar cookies — acesse no navegador:
 http://localhost:3000/api/auth/clear
 ```
 
-### Banco de dados não encontrado
-```bash
-npx prisma migrate dev
-```
-
 ### Hydration mismatch no React
-```tsx
-// ❌ Errado — lê localStorage no servidor (undefined) e no cliente (valor salvo)
-const [val, setVal] = useState(() => localStorage.getItem("key"));
 
-// ✅ Correto — começa com default determinístico, carrega no cliente após montar
-const [val, setVal] = useState("default");
-useEffect(() => {
-  const saved = localStorage.getItem("key");
-  if (saved) setVal(saved);
-}, []);
+```tsx
+// ❌ Errado
+const [v, setV] = useState(() => localStorage.getItem("k"));
+
+// ✅ Correto
+const [v, setV] = useState("padrão");
+useEffect(() => { const s = localStorage.getItem("k"); if (s) setV(s); }, []);
 ```
 
-### Prisma: cliente desatualizado após mudança no schema
+### Erro de conexão com o banco
+
 ```bash
-npx prisma generate
-npx prisma migrate dev
+# Verificar se MySQL está rodando
+sudo systemctl status mysql
+
+# Testar conexão
+mysql -u bv_user -p -h localhost bela_vista
+```
+
+### Prisma: cliente desatualizado após alterar o schema
+
+```bash
+npm run db:generate
+npm run db:migrate   # dev
+# ou
+npm run db:deploy    # produção
+```
+
+### PM2 não inicia após reboot
+
+```bash
+pm2 startup     # siga as instruções do comando
+pm2 save
 ```
 
 ---
 
 ## 📜 Licença
 
-Este projeto está licenciado sob a **[Creative Commons Attribution 4.0 International (CC BY 4.0)](./LICENSE)**.
+**[Creative Commons Attribution 4.0 International (CC BY 4.0)](./LICENSE)**
 
-**Você é livre para:**
-- ✅ **Usar** — para qualquer finalidade, incluindo comercial
-- ✅ **Adaptar** — modificar, transformar e criar projetos derivados
-- ✅ **Distribuir** — redistribuir o original ou suas adaptações
-
-**Desde que você:**
-- 📌 **Dê crédito** ao projeto e ao(s) autor(es) originais
-- 📌 **Indique alterações** — deixe claro o que foi modificado
-- 📌 **Mantenha a licença** — inclua o arquivo `LICENSE` no projeto derivado
+✅ Usar · ✅ Adaptar · ✅ Distribuir — inclusive comercialmente  
+📌 **Crédito obrigatório** ao projeto e autor(es) originais  
+📌 **Indique alterações** feitas no código  
+📌 **Mantenha a licença** em projetos derivados
 
 ### Crédito mínimo exigido
 
@@ -366,10 +537,12 @@ Licença: CC BY 4.0
 
 Desenvolvido por [Cristiano](https://github.com/cristianowa1150) com assistência de [Claude (Anthropic)](https://claude.ai).
 
+Veja o histórico completo de mudanças em [CHANGELOG.md](./CHANGELOG.md).
+
 ---
 
 <p align="center">
   <a href="https://creativecommons.org/licenses/by/4.0/">
-    <img src="https://licensebuttons.net/l/by/4.0/88x31.png" alt="Licença CC BY 4.0" />
+    <img src="https://licensebuttons.net/l/by/4.0/88x31.png" alt="CC BY 4.0" />
   </a>
 </p>
