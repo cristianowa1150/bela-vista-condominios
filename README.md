@@ -20,7 +20,7 @@ Sistema web completo de gestão financeira para condomínios, com dashboard, tra
 - **Relatórios** — exportação em PDF e Excel
 - **Categorias** personalizadas com cores
 - **Perfis de acesso**: Administrador, Operador Completo, Operador, Somente Leitura, Rejeitado
-- **Autenticação** local (e-mail + senha) e OAuth (Google, GitHub, Microsoft)
+- **Autenticação** local (e-mail + senha) e OAuth (Google, GitHub)
 - **Temas visuais**: Claro, Escuro, Sépia, Apple (glassmorphism)
 - **Personalização**: 9 paletas de menu, foto de perfil, ícone do menu, favicon e fundo de login (Bing foto do dia)
 
@@ -200,9 +200,6 @@ GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
 GITHUB_CLIENT_ID=""
 GITHUB_CLIENT_SECRET=""
-AZURE_AD_CLIENT_ID=""
-AZURE_AD_CLIENT_SECRET=""
-AZURE_AD_TENANT_ID="common"
 ```
 
 ### 9. Gerar cliente Prisma e aplicar migrações
@@ -335,7 +332,6 @@ URLs de callback para produção — substitua `seudominio.com`:
 |---|---|
 | Google | `https://seudominio.com/api/auth/callback/google` |
 | GitHub | `https://seudominio.com/api/auth/callback/github` |
-| Microsoft | `https://seudominio.com/api/auth/callback/microsoft-entra-id` |
 
 ### Google
 
@@ -350,13 +346,6 @@ URLs de callback para produção — substitua `seudominio.com`:
 1. [github.com/settings/developers](https://github.com/settings/developers) → **New OAuth App**
 2. Callback URL: `https://seudominio.com/api/auth/callback/github`
 3. Gere um Client Secret
-
-### Microsoft
-
-1. [portal.azure.com](https://portal.azure.com) → **Registros de aplicativos → Novo registro**
-2. Tipos de conta: *Contas em qualquer diretório e contas pessoais*
-3. URI de redirecionamento: `https://seudominio.com/api/auth/callback/microsoft-entra-id`
-4. Copie ID do aplicativo + crie segredo em **Certificados e segredos**
 
 ---
 

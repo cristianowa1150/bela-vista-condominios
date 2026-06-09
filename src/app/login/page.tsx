@@ -362,7 +362,7 @@ export default function LoginPage() {
                 e.currentTarget.style.background = "rgba(255,255,255,0.07)";
               }}
             >
-              <span>Google · GitHub · Microsoft</span>
+              <span>Google · GitHub</span>
               <ChevronDown
                 className={`w-4 h-4 transition-transform duration-200 ${showOAuth ? "rotate-180" : ""}`}
               />
@@ -410,24 +410,6 @@ export default function LoginPage() {
                   GitHub
                 </button>
 
-                {/* Microsoft */}
-                <button
-                  onClick={() => signIn("microsoft-entra-id", { callbackUrl: "/dashboard" })}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all text-white"
-                  style={{
-                    background: "rgba(37,99,235,0.80)",
-                    border: "1px solid rgba(255,255,255,0.15)",
-                    backdropFilter: "blur(8px)",
-                    boxShadow: "0 2px 12px rgba(37,99,235,0.35)",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(37,99,235,1)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(37,99,235,0.80)"; }}
-                >
-                  <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0 fill-current">
-                    <path d="M11.4 24H0V12.6h11.4V24zM24 24H12.6V12.6H24V24zM11.4 11.4H0V0h11.4v11.4zM24 11.4H12.6V0H24v11.4z"/>
-                  </svg>
-                  Microsoft
-                </button>
               </div>
             )}
           </div>

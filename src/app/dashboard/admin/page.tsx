@@ -51,7 +51,6 @@ const ASSIGNABLE_ROLES = [
 const PROVIDER_LABELS: Record<string, string> = {
   google: "Google",
   github: "GitHub",
-  "microsoft-entra-id": "Microsoft",
 };
 
 interface EditForm {
