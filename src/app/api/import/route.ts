@@ -4,6 +4,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseCSV } from "@/lib/parsers/csv-parser";
 import { parseXLSX } from "@/lib/parsers/xlsx-parser";
+import { parseOFX } from "@/lib/parsers/ofx-parser";
+import { parsePDF } from "@/lib/parsers/pdf-parser";
+import { parseTXT } from "@/lib/parsers/txt-parser";
 
 function monthRange(month: string) {
   const [year, m] = month.split("-").map(Number);
@@ -107,11 +110,17 @@ export async function POST(request: NextRequest) {
   try {
     if (ext === "csv") {
       parseResult = await parseCSV(file);
+    } else if (ext === "ofx") {
+      parseResult = await parseOFX(file);
+    } else if (ext === "pdf") {
+      parseResult = await parsePDF(file);
+    } else if (ext === "txt") {
+      parseResult = await parseTXT(file);
     } else if (ext === "xlsx" || ext === "xls") {
       parseResult = await parseXLSX(file);
     } else {
       return Response.json(
-        { error: "Formato não suportado. Use CSV ou XLSX/XLS." },
+        { error: "Formato não suportado. Use CSV, OFX, PDF ou TXT." },
         { status: 400 }
       );
     }

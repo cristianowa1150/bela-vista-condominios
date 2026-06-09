@@ -203,7 +203,7 @@ export default function ImportPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Importar Transações</h1>
         <p className="text-gray-500 text-sm mt-1">
-          Importe extratos bancários em CSV ou XLSX
+          Importe extratos bancários em CSV, OFX, PDF ou TXT
         </p>
       </div>
 
@@ -275,13 +275,13 @@ export default function ImportPage() {
               Selecionar Arquivo
               <input
                 type="file"
-                accept=".csv,.xlsx,.xls"
+                accept=".csv,.ofx,.pdf,.txt,.xlsx,.xls"
                 onChange={handleFileChange}
                 className="hidden"
               />
             </label>
             <p className="text-xs text-gray-400">
-              Formatos suportados: CSV, XLSX, XLS · Extratos do Internet Banking
+              Formatos suportados: CSV, OFX, PDF, TXT · Extratos do Internet Banking
             </p>
           </div>
         </div>
@@ -291,6 +291,11 @@ export default function ImportPage() {
       {!preview && !success && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
           <h3 className="font-semibold text-blue-800 mb-3 text-sm">Como exportar o extrato</h3>
+          <p className="text-xs text-blue-700 mb-3">
+            <strong>Recomendado:</strong> prefira <strong>OFX</strong> ou <strong>CSV</strong> — são
+            formatos estruturados com precisão garantida. PDF e TXT são lidos por reconhecimento de
+            texto e devem ser conferidos na pré-visualização.
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-blue-700">
             <div>
               <p className="font-medium mb-1">Bradesco / Itaú / BB / Inter</p>
