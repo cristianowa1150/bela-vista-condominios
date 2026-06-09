@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Legend,
 } from "recharts";
-import { Download, FileText, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { Download, FileText, TrendingUp, TrendingDown, DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface Transaction {
@@ -79,13 +79,15 @@ export default function ReportsPage() {
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [activePreset, setActivePreset] = useState<string>("Este mês");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLoading(true);
     fetch(`/api/transactions?limit=2000&startDate=${startDate}&endDate=${endDate}`)
       .then((r) => r.json())
-      .then((d) => { setTransactions(d.transactions ?? []); setLoading(false); });
+      .then((d) => { setTransactions(d.transactions ?? []); setLoading(false); setPage(1); });
   }, [startDate, endDate]);
 
   function applyPreset(label: string, fn: () => { start: string; end: string }) {
@@ -106,6 +108,12 @@ export default function ReportsPage() {
   const receitaByCategory = groupByCategory(receitas);
   const despesaByCategory = groupByCategory(despesas);
   const byDay = groupByDay(transactions);
+
+  // Paginação da tabela em tela (a impressão sempre mostra 100% dos registros)
+  const totalPages = Math.max(1, Math.ceil(transactions.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageRows = transactions.slice(pageStart, pageStart + pageSize);
 
   function exportExcel() {
     const rows = transactions.map((t) => ({
@@ -352,20 +360,32 @@ export default function ReportsPage() {
               </div>
             )}
 
-            {/* Transaction table */}
+            {/* Transaction table — tela (paginada) */}
             {transactions.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="p-4 border-b border-gray-100">
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden no-print">
+                <div className="p-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
                   <h3 className="font-semibold text-gray-800">
                     Todas as Transações do Período
                     <span className="text-sm font-normal text-gray-400 ml-2">
                       ({transactions.length} registros)
                     </span>
                   </h3>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span className="text-xs text-gray-500">Registros por página:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      {[25, 50, 100, 200, 300].map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-gray-50">
+                    <thead className="bg-gray-50">
                       <tr className="border-b border-gray-100">
                         <th className="text-left py-3 px-4 font-medium text-gray-600">Data</th>
                         <th className="text-left py-3 px-4 font-medium text-gray-600">Descrição</th>
@@ -374,7 +394,7 @@ export default function ReportsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {transactions.map((t) => (
+                      {pageRows.map((t) => (
                         <tr key={t.id} className="hover:bg-gray-50">
                           <td className="py-2.5 px-4 text-gray-600 whitespace-nowrap">{formatDate(t.date)}</td>
                           <td className="py-2.5 px-4 text-gray-800 max-w-xs truncate">{t.description}</td>
@@ -396,6 +416,90 @@ export default function ReportsPage() {
                     </tbody>
                   </table>
                 </div>
+                {/* Paginação */}
+                <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+                  <span className="text-xs text-gray-500">
+                    Exibindo {pageStart + 1}–{Math.min(pageStart + pageSize, transactions.length)} de {transactions.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage <= 1}
+                      className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Página anterior"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((n) => n === 1 || n === totalPages || Math.abs(n - currentPage) <= 2)
+                      .map((n, idx, arr) => (
+                        <span key={n} className="flex items-center">
+                          {idx > 0 && arr[idx - 1] !== n - 1 && (
+                            <span className="px-1 text-gray-400 text-xs">…</span>
+                          )}
+                          <button
+                            onClick={() => setPage(n)}
+                            className={`min-w-8 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                              n === currentPage
+                                ? "bg-indigo-600 text-white"
+                                : "text-gray-600 border border-gray-200 hover:bg-gray-50"
+                            }`}
+                          >
+                            {n}
+                          </button>
+                        </span>
+                      ))}
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage >= totalPages}
+                      className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Próxima página"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Transaction table — impressão (todos os registros, sem paginação) */}
+            {transactions.length > 0 && (
+              <div className="print-only">
+                <h3 className="font-semibold text-gray-800 mb-2">
+                  Todas as Transações do Período ({transactions.length} registros)
+                </h3>
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-gray-300">
+                      <th className="text-left py-1.5 pr-2 font-medium text-gray-600">Data</th>
+                      <th className="text-left py-1.5 pr-2 font-medium text-gray-600">Descrição</th>
+                      <th className="text-left py-1.5 pr-2 font-medium text-gray-600">Categoria</th>
+                      <th className="text-right py-1.5 font-medium text-gray-600">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map((t) => (
+                      <tr key={t.id} className="border-b border-gray-200" style={{ breakInside: "avoid" }}>
+                        <td className="py-1 pr-2 text-gray-600 whitespace-nowrap">{formatDate(t.date)}</td>
+                        <td className="py-1 pr-2 text-gray-800">{t.description}</td>
+                        <td className="py-1 pr-2 text-gray-600">{t.category?.name ?? "—"}</td>
+                        <td className={`py-1 text-right font-semibold ${t.type === "RECEITA" ? "text-green-700" : "text-red-700"}`}>
+                          {t.type === "RECEITA" ? "+" : "-"}{formatCurrency(t.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-300 font-semibold">
+                      <td colSpan={3} className="py-1.5 pr-2 text-gray-700">
+                        Total: {receitas.length} receitas ({formatCurrency(totalReceitas)}) · {despesas.length} despesas ({formatCurrency(totalDespesas)})
+                      </td>
+                      <td className={`py-1.5 text-right ${saldo >= 0 ? "text-indigo-700" : "text-red-700"}`}>
+                        Saldo: {formatCurrency(saldo)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             )}
 
