@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { authorize, ROLES_READ, ROLES_IMPORT, round2 } from "@/lib/authz";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) return Response.json({ error: "Não autorizado" }, { status: 401 });
+  const { error } = await authorize(ROLES_READ);
+  if (error) return error;
 
   const statements = await prisma.accountStatement.findMany({
     orderBy: { month: "desc" },
@@ -13,8 +13,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) return Response.json({ error: "Não autorizado" }, { status: 401 });
+  const { error } = await authorize(ROLES_IMPORT);
+  if (error) return error;
 
   const { month, saldoEmConta, notes } = await request.json() as {
     month: string;
@@ -39,9 +39,9 @@ export async function POST(request: NextRequest) {
     }),
   ]);
 
-  const totalReceitas = rec._sum.amount ?? 0;
-  const totalDespesas = desp._sum.amount ?? 0;
-  const resultado = totalReceitas - totalDespesas;
+  const totalReceitas = round2(rec._sum.amount ?? 0);
+  const totalDespesas = round2(desp._sum.amount ?? 0);
+  const resultado = round2(totalReceitas - totalDespesas);
 
   const statement = await prisma.accountStatement.upsert({
     where: { month },

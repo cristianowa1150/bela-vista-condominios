@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { authorize, ROLES_WRITE } from "@/lib/authz";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -14,10 +14,8 @@ export async function PUT(
   request: NextRequest,
   ctx: RouteContext<"/api/categories/[id]">
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const { error } = await authorize(ROLES_WRITE);
+  if (error) return error;
 
   const { id } = await ctx.params;
   const body = await request.json();
@@ -39,10 +37,8 @@ export async function DELETE(
   _req: NextRequest,
   ctx: RouteContext<"/api/categories/[id]">
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const { error } = await authorize(ROLES_WRITE);
+  if (error) return error;
 
   const { id } = await ctx.params;
 

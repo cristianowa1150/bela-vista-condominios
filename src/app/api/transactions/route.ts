@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { authorize, ROLES_READ, ROLES_WRITE, ROLES_IMPORT } from "@/lib/authz";
 import { z } from "zod";
 
 const transactionSchema = z.object({
@@ -13,10 +13,8 @@ const transactionSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const { session, error } = await authorize(ROLES_READ);
+  if (error) return error;
 
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type");
@@ -57,10 +55,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  // Categorizar em massa faz parte da prestação de contas → OPERATOR pode
+  const { session, error } = await authorize(ROLES_IMPORT);
+  if (error) return error;
 
   const body = await request.json();
   const { ids, categoryId } = body as { ids: string[]; categoryId: string | null };
@@ -78,10 +75,8 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const { session, error } = await authorize(ROLES_WRITE);
+  if (error) return error;
 
   const body = await request.json();
   const validated = transactionSchema.safeParse(body);

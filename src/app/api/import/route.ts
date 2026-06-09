@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createHash } from "node:crypto";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { authorize, ROLES_READ, ROLES_IMPORT, round2 } from "@/lib/authz";
 import { parseCSV } from "@/lib/parsers/csv-parser";
 import { parseXLSX } from "@/lib/parsers/xlsx-parser";
 import { parseOFX } from "@/lib/parsers/ofx-parser";
@@ -16,35 +16,15 @@ function monthRange(month: string) {
   };
 }
 
-/**
- * Chave de identidade de um lançamento: data (dia) + tipo + valor com 2 casas
- * + descrição normalizada (espaços colapsados, caixa baixa).
- *
- * A deduplicação usa CONTROLE DE MULTIPLICIDADE: se o banco de dados já tem
- * 2 ocorrências de uma chave e o extrato traz 3, exatamente 1 nova é importada.
- * Isso preserva lançamentos legítimos repetidos (ex.: duas taxas idênticas no
- * mesmo dia) sem nunca duplicar o que já existe — precisão exigida para
- * prestação de contas.
- */
-function txKey(date: Date, type: string, amount: number, description: string) {
-  const day = date.toISOString().slice(0, 10);
-  const desc = description.trim().replace(/\s+/g, " ").toLowerCase();
-  return `${day}|${type}|${amount.toFixed(2)}|${desc}`;
-}
-
-interface ParsedTx {
-  date: string;
-  description: string;
-  amount: number;
-  type: string;
-}
+import { splitWithExisting, type DedupRow } from "@/lib/import-dedup";
 
 /**
  * Separa as transações do extrato em novas vs. duplicadas, comparando com o
  * que já existe no banco dentro do intervalo de datas do extrato.
+ * A lógica pura (chave + multiplicidade) vive em src/lib/import-dedup.ts.
  */
-async function splitDuplicates(rows: ParsedTx[]) {
-  if (rows.length === 0) return { fresh: [] as ParsedTx[], duplicates: 0 };
+async function splitDuplicates(rows: DedupRow[]) {
+  if (rows.length === 0) return { fresh: [] as DedupRow[], duplicates: 0 };
 
   const dates = rows.map((r) => new Date(r.date).getTime());
   const minDate = new Date(Math.min(...dates));
@@ -57,33 +37,12 @@ async function splitDuplicates(rows: ParsedTx[]) {
     select: { date: true, type: true, amount: true, description: true },
   });
 
-  // Multiplicidade: quantas ocorrências de cada chave já existem no banco
-  const existingCount = new Map<string, number>();
-  for (const t of existing) {
-    const k = txKey(t.date, t.type, t.amount, t.description);
-    existingCount.set(k, (existingCount.get(k) ?? 0) + 1);
-  }
-
-  const fresh: ParsedTx[] = [];
-  let duplicates = 0;
-  for (const row of rows) {
-    const k = txKey(new Date(row.date), row.type, row.amount, row.description);
-    const remaining = existingCount.get(k) ?? 0;
-    if (remaining > 0) {
-      existingCount.set(k, remaining - 1);
-      duplicates++;
-    } else {
-      fresh.push(row);
-    }
-  }
-  return { fresh, duplicates };
+  return splitWithExisting(rows, existing);
 }
 
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const { session, error } = await authorize(ROLES_IMPORT);
+  if (error) return error;
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
@@ -259,8 +218,8 @@ export async function POST(request: NextRequest) {
       }),
     ]);
 
-    const totalReceitas = rec._sum.amount ?? 0;
-    const totalDespesas = desp._sum.amount ?? 0;
+    const totalReceitas = round2(rec._sum.amount ?? 0);
+    const totalDespesas = round2(desp._sum.amount ?? 0);
 
     await prisma.accountStatement.upsert({
       where: { month },
@@ -269,7 +228,7 @@ export async function POST(request: NextRequest) {
         saldoEmConta: metadata.saldo,
         totalReceitas,
         totalDespesas,
-        resultado: totalReceitas - totalDespesas,
+        resultado: round2(totalReceitas - totalDespesas),
         notes: metadata.periodLabel
           ? `Importado do extrato: ${metadata.periodLabel}`
           : null,
@@ -278,7 +237,7 @@ export async function POST(request: NextRequest) {
         saldoEmConta: metadata.saldo,
         totalReceitas,
         totalDespesas,
-        resultado: totalReceitas - totalDespesas,
+        resultado: round2(totalReceitas - totalDespesas),
       },
     });
   }
@@ -295,10 +254,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const { session, error } = await authorize(ROLES_READ);
+  if (error) return error;
 
   const imports = await prisma.importHistory.findMany({
     where: { userId: session.user.id },

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { authorize, ROLES_READ, ROLES_WRITE } from "@/lib/authz";
 import { z } from "zod";
 
 const categorySchema = z.object({
@@ -11,10 +11,8 @@ const categorySchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const { error } = await authorize(ROLES_READ);
+  if (error) return error;
 
   const categories = await prisma.category.findMany({
     orderBy: [{ type: "asc" }, { name: "asc" }],
@@ -24,10 +22,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const { error } = await authorize(ROLES_WRITE);
+  if (error) return error;
 
   const body = await request.json();
   const validated = categorySchema.safeParse(body);

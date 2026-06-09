@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { authorize, ROLES_READ, ROLES_WRITE } from "@/lib/authz";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -16,10 +16,8 @@ export async function GET(
   _req: NextRequest,
   ctx: RouteContext<"/api/transactions/[id]">
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const { session, error } = await authorize(ROLES_READ);
+  if (error) return error;
 
   const { id } = await ctx.params;
 
@@ -39,10 +37,8 @@ export async function PUT(
   request: NextRequest,
   ctx: RouteContext<"/api/transactions/[id]">
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const { session, error } = await authorize(ROLES_WRITE);
+  if (error) return error;
 
   const { id } = await ctx.params;
 
@@ -86,10 +82,8 @@ export async function DELETE(
   _req: NextRequest,
   ctx: RouteContext<"/api/transactions/[id]">
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  const { session, error } = await authorize(ROLES_WRITE);
+  if (error) return error;
 
   const { id } = await ctx.params;
 
