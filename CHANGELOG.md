@@ -7,6 +7,58 @@ Versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [2.0.0] — 2026-06-09
+
+> Release de consolidação pré-produção: CRUD administrativo completo,
+> importação multi-formato com deduplicação garantida, OAuth Google/GitHub
+> configurado e auditoria de segurança/confiabilidade com suíte de testes.
+
+### Adicionado
+- **Admin CRUD completo** — criar usuário local (nome, e-mail, senha, perfil),
+  editar, excluir com confirmação (mostra transações afetadas), botões rápidos
+  Aprovar/Rejeitar para contas pendentes; API com POST e DELETE em
+  `/api/admin/users`
+- **Importação OFX, PDF e TXT** além de CSV — parser OFX (SGML/XML, Latin-1,
+  saldo/período/conta), parser PDF via extração de texto com heurística
+  data+valor BR, parser TXT em duas etapas (CSV delimitado → texto livre)
+- **Deduplicação de importação em duas camadas** — hash SHA-256 do arquivo
+  bloqueia reimportação do mesmo extrato; dedupe transação a transação
+  (data + tipo + valor + descrição normalizada) com controle de multiplicidade,
+  permitindo complementar mês em aberto com extratos parciais (5/15/30 dias)
+  sem jamais duplicar lançamentos; notificações na tela explicando o motivo
+  de qualquer bloqueio
+- **Relatórios paginados** — tabela "Todas as Transações do Período" com
+  25–300 registros por página; exportação PDF imprime 100% dos registros
+  com totalizador, independente da paginação em tela
+- **Autorização por perfil em todas as APIs** (`src/lib/authz.ts`) — matriz
+  ADMIN/USER/OPERATOR/READ_ONLY aplicada endpoint a endpoint (defesa em
+  profundidade além do proxy)
+- **Suíte de testes de unidade** (`npm test`, 39 casos) — matemática monetária,
+  parseAmount, parser OFX, parser texto livre e deduplicação
+- **OAuth Google e GitHub** configurados para `contas.ibia.mg.gov.br` e
+  desenvolvimento local
+
+### Alterado
+- **Login simplificado** — provedores OAuth reduzidos a Google e GitHub
+- Totais da prestação de contas arredondados a 2 casas (`round2`) em todas
+  as gravações e respostas de API
+- Coluna `fileHash` adicionada a `ImportHistory` (migração)
+
+### Removido
+- **BREAKING:** provedor OAuth Microsoft/Azure AD (variáveis `AZURE_AD_*`
+  não são mais lidas)
+- **Segurança:** rota `/api/diag` (expunha e-mails/perfis sem autenticação
+  e dependia de `node:sqlite` removido)
+
+### Corrigido
+- Usuário Somente Leitura conseguia criar/editar/excluir transações e
+  importar extratos via chamadas diretas à API
+- `/api/seed` restrito a administradores
+- Cliente Prisma gerado continha resquícios de geração antiga (provider
+  `prisma-client`), causando 404 em todas as rotas de API em dev
+
+---
+
 ## [1.0.0] — 2026-06-08
 
 > Primeira versão de produção. Migração de SQLite/libsql para MySQL nativo,
