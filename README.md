@@ -1,6 +1,6 @@
 # 🏢 Condomínio Bela Vista — Sistema de Gestão Financeira
 
-[![Versão](https://img.shields.io/badge/versão-1.0.0-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-2.0.0-blue)](./CHANGELOG.md)
 [![Licença](https://img.shields.io/badge/licença-CC%20BY%204.0-green)](./LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
 [![MySQL](https://img.shields.io/badge/banco-MySQL%208-orange)](https://mysql.com)
@@ -15,7 +15,9 @@ Sistema web completo de gestão financeira para condomínios, com dashboard, tra
 
 - **Dashboard** com gráficos de receitas, despesas, saldo e categorias por período
 - **Transações** — cadastro, edição, filtro por período, paginação até 300 registros
-- **Importação** de extratos bancários via CSV/OFX
+- **Importação** de extratos bancários via CSV, OFX, PDF e TXT, com
+  deduplicação automática (hash do arquivo + transação a transação) que
+  permite complementar meses em aberto com extratos parciais
 - **Prestação de Contas** — relatórios mensais por caixa/banco
 - **Relatórios** — exportação em PDF e Excel
 - **Categorias** personalizadas com cores
