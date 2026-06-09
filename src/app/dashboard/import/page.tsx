@@ -27,6 +27,11 @@ interface PeriodConflict {
   existingCount: number;
 }
 
+interface AlreadyImported {
+  filename: string;
+  importedAt: string;
+}
+
 interface ImportHistory {
   id: string;
   filename: string;
@@ -49,8 +54,11 @@ export default function ImportPage() {
   const [previewErrors, setPreviewErrors] = useState<string[]>([]);
   const [previewMeta, setPreviewMeta] = useState<BankMetadata | null>(null);
   const [periodConflict, setPeriodConflict] = useState<PeriodConflict | null>(null);
+  const [newCount, setNewCount] = useState(0);
+  const [duplicateCount, setDuplicateCount] = useState(0);
+  const [alreadyImported, setAlreadyImported] = useState<AlreadyImported | null>(null);
   const [importing, setImporting] = useState(false);
-  const [success, setSuccess] = useState<{ imported: number; metadata?: BankMetadata; replaced?: boolean } | null>(null);
+  const [success, setSuccess] = useState<{ imported: number; duplicatesSkipped?: number; metadata?: BankMetadata; replaced?: boolean } | null>(null);
   const [error, setError] = useState("");
   const [history, setHistory] = useState<ImportHistory[]>([]);
 
@@ -86,6 +94,9 @@ export default function ImportPage() {
     setPreviewErrors([]);
     setPreviewMeta(null);
     setPeriodConflict(null);
+    setNewCount(0);
+    setDuplicateCount(0);
+    setAlreadyImported(null);
 
     const formData = new FormData();
     formData.set("file", f);
@@ -100,6 +111,9 @@ export default function ImportPage() {
       setPreviewErrors(data.errors ?? []);
       setPreviewMeta(data.metadata ?? null);
       setPeriodConflict(data.periodConflict ?? null);
+      setNewCount(data.newCount ?? data.total);
+      setDuplicateCount(data.duplicateCount ?? 0);
+      setAlreadyImported(data.alreadyImported ?? null);
     } else {
       setError(data.error ?? "Erro ao processar arquivo");
     }
@@ -118,13 +132,27 @@ export default function ImportPage() {
     const data = await res.json();
 
     if (res.ok) {
-      setSuccess({ imported: data.imported, metadata: data.metadata, replaced: data.replaced });
+      setSuccess({
+        imported: data.imported,
+        duplicatesSkipped: data.duplicatesSkipped,
+        metadata: data.metadata,
+        replaced: data.replaced,
+      });
       setPreview(null);
       setFile(null);
       setPreviewMeta(null);
       setPeriodConflict(null);
+      setAlreadyImported(null);
     } else {
       setError(data.error ?? "Erro ao importar");
+      // Importação totalmente bloqueada por duplicidade: fecha o preview
+      if (data.reason === "DUPLICATE_FILE" || data.reason === "ALL_DUPLICATES") {
+        setPreview(null);
+        setFile(null);
+        setPreviewMeta(null);
+        setPeriodConflict(null);
+        setAlreadyImported(null);
+      }
     }
     setImporting(false);
   }
@@ -162,6 +190,9 @@ export default function ImportPage() {
     setPreviewErrors([]);
     setPreviewMeta(null);
     setPeriodConflict(null);
+    setNewCount(0);
+    setDuplicateCount(0);
+    setAlreadyImported(null);
     setSuccess(null);
     setError("");
   }
@@ -186,6 +217,13 @@ export default function ImportPage() {
                 {success.replaced ? "Substituição concluída — " : ""}
                 {success.imported} transações importadas com sucesso!
               </p>
+              {(success.duplicatesSkipped ?? 0) > 0 && (
+                <p className="text-amber-700 text-sm mt-1">
+                  {success.duplicatesSkipped} transações duplicadas foram detectadas e{" "}
+                  <strong>não foram importadas</strong> (já existiam no sistema com a mesma data,
+                  valor e descrição).
+                </p>
+              )}
               {success.metadata?.saldo !== undefined && success.metadata.periodEnd && (
                 <p className="text-green-700 text-sm mt-1">
                   Saldo da conta{" "}
@@ -317,20 +355,66 @@ export default function ImportPage() {
               </div>
             )}
 
-            {/* Period conflict warning */}
-            {periodConflict && (
+            {/* Arquivo idêntico já importado */}
+            {alreadyImported && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-300 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-red-800 text-sm">
+                      Este arquivo já foi importado
+                    </p>
+                    <p className="text-red-700 text-xs mt-1">
+                      Conteúdo idêntico a <strong>{alreadyImported.filename}</strong>, importado em{" "}
+                      {new Date(alreadyImported.importedAt).toLocaleString("pt-BR")}. A importação
+                      normal está bloqueada para evitar duplicidade.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Análise de duplicidade */}
+            {!alreadyImported && duplicateCount > 0 && (
               <div className="mb-4 p-4 bg-amber-50 border border-amber-300 rounded-xl">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold text-amber-800 text-sm">
-                      Conflito detectado — {periodConflict.existingCount} transações já existem em{" "}
-                      <span className="capitalize">{monthLabel(periodConflict.month)}</span>
+                      {newCount === 0
+                        ? `Todas as ${previewTotal} transações deste extrato já existem no sistema`
+                        : `${duplicateCount} de ${previewTotal} transações já existem no sistema`}
                     </p>
                     <p className="text-amber-700 text-xs mt-1">
-                      Importar novamente vai <strong>duplicar</strong> os dados. Use "Substituir Período"
-                      para apagar as transações existentes desse mês e reimportar, ou "Mesclar" para
-                      adicionar apenas se não houver conflito.
+                      {newCount === 0 ? (
+                        <>Nada será importado — a importação está bloqueada para garantir a exatidão
+                        da prestação de contas.</>
+                      ) : (
+                        <>As duplicadas serão <strong>automaticamente ignoradas</strong> (mesma data,
+                        valor e descrição). Apenas as <strong>{newCount} transações novas</strong>{" "}
+                        serão importadas — ideal para complementar um mês ainda em aberto com
+                        extratos parciais (5, 15, 30 dias ou personalizado).</>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Período com dados, mas sem nenhuma duplicata */}
+            {periodConflict && duplicateCount === 0 && !alreadyImported && (
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-blue-800 text-sm">
+                      {periodConflict.existingCount} transações já existem em{" "}
+                      <span className="capitalize">{monthLabel(periodConflict.month)}</span>
+                    </p>
+                    <p className="text-blue-700 text-xs mt-1">
+                      Nenhuma coincide com este extrato — as {previewTotal} transações serão{" "}
+                      <strong>adicionadas</strong> ao mês. Use "Substituir Período" apenas se quiser
+                      apagar tudo do mês e reimportar do zero.
                     </p>
                   </div>
                 </div>
@@ -412,19 +496,45 @@ export default function ImportPage() {
                 </button>
                 <button
                   onClick={() => handleImport(false)}
-                  disabled={importing}
-                  className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-60"
+                  disabled={importing || newCount === 0 || !!alreadyImported}
+                  title={
+                    alreadyImported
+                      ? "Arquivo idêntico já importado"
+                      : newCount === 0
+                        ? "Todas as transações já existem no sistema"
+                        : undefined
+                  }
+                  className="flex items-center gap-2 px-5 py-3 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {importing ? "Importando…" : `Mesclar (adicionar ${previewTotal} transações)`}
+                  {importing
+                    ? "Importando…"
+                    : newCount === 0 || alreadyImported
+                      ? "Nada novo a importar"
+                      : duplicateCount > 0
+                        ? `Importar ${newCount} novas (ignorar ${duplicateCount} duplicadas)`
+                        : `Mesclar (adicionar ${previewTotal} transações)`}
                 </button>
               </>
             ) : (
               <button
                 onClick={() => handleImport(false)}
-                disabled={importing}
-                className="flex-1 px-5 py-3 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-60"
+                disabled={importing || newCount === 0 || !!alreadyImported}
+                title={
+                  alreadyImported
+                    ? "Arquivo idêntico já importado"
+                    : newCount === 0
+                      ? "Todas as transações já existem no sistema"
+                      : undefined
+                }
+                className="flex-1 px-5 py-3 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {importing ? "Importando…" : `Importar ${previewTotal} transações`}
+                {importing
+                  ? "Importando…"
+                  : newCount === 0 || alreadyImported
+                    ? "Nada novo a importar"
+                    : duplicateCount > 0
+                      ? `Importar ${newCount} novas (ignorar ${duplicateCount} duplicadas)`
+                      : `Importar ${previewTotal} transações`}
               </button>
             )}
           </div>

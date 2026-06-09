@@ -113,6 +113,7 @@ model ImportHistory {
   userId       String
   filename     String
   fileType     String
+  fileHash     String?
   recordCount  Int
   status       String        @default("SUCCESS")
   errorMessage String?
