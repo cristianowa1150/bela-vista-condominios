@@ -1,134 +1,117 @@
 # Instalação no cPanel — contas.ibia.mg.gov.br
 
-Guia de deploy do Condomínio Bela Vista v2.0.0 em hospedagem cPanel com
-**Setup Node.js App** (Phusion Passenger) e **MySQL 8**.
+Deploy do Condomínio Bela Vista v2.0.0 em hospedagem cPanel compartilhada
+(Application Manager / Phusion Passenger + MySQL 8).
 
-> Pré-requisitos confirmados no servidor: cPanel 134, MySQL 8.4, Node.js App
-> habilitado com **Node ≥ 20.9** (exigência do Next.js 16).
+> **Estratégia standalone:** a hospedagem compartilhada não tem memória para
+> `npm install`/`npm run build` (OOM no CloudLinux). Por isso o pacote
+> `bela-vista-v2.0.0-standalone.zip` já vem **compilado**, com `node_modules`
+> mínimo embutido e cliente Prisma gerado para MySQL. **No servidor não se
+> executa npm em momento algum.**
+
+## Como gerar o pacote (na máquina de desenvolvimento)
+
+```bash
+npx prisma generate --schema prisma/schema.mysql.prisma
+DATABASE_URL='mysql://...' npm run build
+# montar: .next/standalone/* + .next/static + public + .env + app.js + schema-mysql.sql
+```
+
+O schema de produção é `prisma/schema.mysql.prisma` (tipos TEXT/LONGTEXT para
+tokens OAuth, avatar e notas). O DDL `schema-mysql.sql` é gerado com
+`prisma migrate diff --from-empty --to-schema prisma/schema.mysql.prisma --script`.
 
 ---
 
-## 1. Banco de dados MySQL
+## Instalação no servidor
 
-No cPanel → **Bancos de Dados MySQL®**:
+### 1. Banco de dados (já criado)
 
-1. **Criar banco**: `contas` → o cPanel prefixa, ex.: `ibia_contas`
-2. **Criar usuário**: `contas_app` com senha forte (gere e anote)
-3. **Adicionar usuário ao banco** com **TODOS OS PRIVILÉGIOS**
+Banco `cristianowa1150_contas`, usuário `cristianowa1150_contas` com todos os
+privilégios. As credenciais já estão no `.env` dentro do pacote — a senha
+aparece **URL-encodada** (`%23` = `#`, `%26` = `&`); não altere.
 
-Anote: `mysql://ibia_contas__app:SENHA@localhost:3306/ibia_contas`
-(use os nomes exatos com prefixo que o cPanel mostrar).
+### 2. Upload
 
-## 2. Upload dos arquivos
+No **Gerenciador de Arquivos**:
 
-1. cPanel → **Gerenciador de Arquivos** → crie a pasta **`contas-app`** na
-   raiz da conta (**fora** de `public_html` — o código não deve ser servido
-   como arquivo estático)
-2. Faça upload do `bela-vista-v2.0.0-cpanel.zip` para dentro dela
-3. Clique com o botão direito → **Extract**
+1. Crie a pasta **`contas-app`** na raiz da conta (fora de `public_html`)
+2. Envie `bela-vista-v2.0.0-standalone.zip` para dentro dela e use **Extract**
+3. Em *Settings* → **Show Hidden Files**, confirme que `.env` e `.next`
+   foram extraídos
 
-## 3. Criar a aplicação Node.js
+### 3. Criar as tabelas
 
-cPanel → **Setup Node.js App** → **Create Application**:
+No **Terminal**:
+
+```bash
+cd ~/contas-app
+mysql -u cristianowa1150_contas -p cristianowa1150_contas < schema-mysql.sql
+# digite a senha do banco quando pedir
+```
+
+Verifique: `mysql -u cristianowa1150_contas -p -e "SHOW TABLES" cristianowa1150_contas`
+→ deve listar 8 tabelas (Account, AccountStatement, Category, ImportHistory,
+Session, Transaction, User, VerificationToken).
+
+### 4. Registrar no Application Manager
+
+cPanel → **Application Manager** → *Editar* (ou *Register Application*):
 
 | Campo | Valor |
 |---|---|
-| Node.js version | **20.x ou superior** (mínimo 20.9) |
-| Application mode | **Production** |
-| Application root | `contas-app` |
-| Application URL | `contas.ibia.mg.gov.br` |
-| Application startup file | `server.js` |
+| Application Name | Sistema Bela Vista |
+| Deployment Domain | `contas.ibia.mg.gov.br` |
+| Base Application URL | `/` |
+| Application Path | `contas-app` (**não** `public_html`) |
+| Deployment Environment | **Production** |
 
-Clique em **Create**. O Passenger conecta o subdomínio à aplicação
-automaticamente (não é preciso configurar o Apache).
-
-## 4. Variáveis de ambiente
-
-O pacote zip já inclui um arquivo **`.env`** na raiz com todos os valores
-preenchidos (banco, AUTH_SECRET, OAuth Google/GitHub) — o Next.js o lê
-automaticamente. Confirme que ele foi extraído junto (no Gerenciador de
-Arquivos, ative **Settings → Show Hidden Files** para vê-lo).
-
-> A senha do banco contém caracteres especiais (`#`, `&`) e por isso aparece
-> **URL-encodada** na `DATABASE_URL` (`%23`, `%26`) — não "corrija" isso.
-
-Apenas **uma** variável precisa ser cadastrada na tela do Setup Node.js App
-(em **Environment variables**), pois é uma flag do Node e não do app:
+Em **Environment Variables**, adicione:
 
 | Nome | Valor |
 |---|---|
 | `NODE_OPTIONS` | `--max-http-header-size=32768` |
 
-⚠️ O `.env` contém segredos: nunca o copie para `public_html` nem o envie
-para o GitHub (já está no `.gitignore`).
+Salve com **Deploy** e deixe **Habilitado**. O Passenger usa o `app.js` do
+pacote como ponto de entrada (padrão fixo do Application Manager).
 
-## 5. Instalar, migrar e compilar
-
-A tela do Setup Node.js App mostra um comando *"Enter to the virtual
-environment"* — copie-o. Abra o cPanel → **Terminal** e execute:
+### 5. Iniciar e validar
 
 ```bash
-# 1. Entrar no ambiente da aplicação (cole o comando copiado), ex.:
-source /home/USUARIO/nodevenv/contas-app/20/bin/activate && cd /home/USUARIO/contas-app
-
-# 2. Instalar dependências
-npm ci
-
-# 3. Apontar o Prisma para MySQL e criar as tabelas
-npm run db:mysql
-npx prisma generate
-npx prisma db push
-
-# 4. Rodar a suíte de testes (39 casos — deve terminar com "0 falharam")
-npm test
-
-# 5. Compilar para produção
-npm run build
+mkdir -p ~/contas-app/tmp && touch ~/contas-app/tmp/restart.txt
 ```
 
-> `db push` cria todas as tabelas direto do schema — as migrações do
-> repositório são específicas de SQLite (dev) e não devem ser usadas no MySQL.
+1. Acesse `https://contas.ibia.mg.gov.br` (primeira carga ~30 s)
+2. Vá em **`/setup`** e crie a conta de administrador (só funciona com o
+   banco vazio de usuários)
+3. Valide: login local, importação de extrato, relatório, painel admin
+4. Teste Google e GitHub (entram como Pendente → aprovar no admin)
 
-## 6. Iniciar e validar
-
-1. Volte ao **Setup Node.js App** → botão **Restart**
-2. cPanel → **SSL/TLS Status** → confirme que `contas.ibia.mg.gov.br` tem
-   certificado AutoSSL válido (cadeado verde)
-3. Acesse `https://contas.ibia.mg.gov.br` → deve redirecionar para `/login`
-4. Acesse `/setup` e **crie a conta de administrador** (só funciona enquanto
-   não existir nenhum usuário)
-5. Faça login e teste: importação de um extrato, relatório, painel admin
-6. Teste o login Google e GitHub (entram como **Pendente**; aprove no admin)
-
-## 7. Backup automático (recomendado)
-
-cPanel → **Cron Jobs** → adicionar, diário às 02:00:
+### 6. Backup diário (Cron Jobs, 02:00)
 
 ```bash
-/usr/bin/mysqldump -u USUARIO -p'SENHA' BANCO | gzip > /home/USUARIO/backups/contas-$(date +\%F).sql.gz
+mkdir -p ~/backups
+/usr/bin/mysqldump -u cristianowa1150_contas -p'SENHA_DO_BANCO' cristianowa1150_contas | gzip > ~/backups/contas-$(date +\%F).sql.gz
 ```
-
-(crie antes a pasta `backups`; mantenha ao menos 30 dias de arquivos)
 
 ---
 
 ## Atualizações futuras
 
-```bash
-# no Terminal, dentro do virtualenv e da pasta contas-app:
-git pull            # ou upload do novo zip por cima
-npm ci
-npm run db:mysql && npx prisma generate && npx prisma db push
-npm test && npm run build
-```
-Depois **Restart** no Setup Node.js App.
+1. Gerar novo pacote standalone na máquina de desenvolvimento (ver topo)
+2. Upload do zip → Extract por cima em `~/contas-app`
+3. Se o schema mudou: aplicar o SQL de migração gerado por
+   `prisma migrate diff` (do estado atual para o novo)
+4. `touch ~/contas-app/tmp/restart.txt`
 
 ## Solução de problemas
 
-| Sintoma | Causa provável / ação |
+| Sintoma | Ação |
 |---|---|
-| Erro 503 / "Passenger could not start" | Veja o log na tela do Node.js App; geralmente variável de ambiente faltando ou `npm run build` não executado |
-| `PrismaClientInitializationError` | `DATABASE_URL` incorreta ou `npm run db:mysql` + `prisma generate` não executados |
-| Login OAuth com `redirect_uri_mismatch` | Confirme `NEXTAUTH_URL=https://contas.ibia.mg.gov.br` e as callbacks nos consoles Google/GitHub |
-| HTTP 431 | Confirme `NODE_OPTIONS=--max-http-header-size=32768`; em último caso acesse `/api/auth/clear` |
-| Node < 20.9 indisponível no seletor | Peça ao provedor para instalar Node 20/22 no CloudLinux |
+| 503 / página de erro do Passenger | A página mostra o log; causas comuns: `.env` ausente (Show Hidden Files), Application Path errado |
+| `node: command not found` ou versão < 20.9 | `node -v` no Terminal; peça ao provedor Node 20+ no CloudLinux |
+| Listagem de arquivos em vez do site | Application Path apontando para `public_html` — corrija no passo 4 |
+| `Access denied` no mysql | Senha digitada errada (a do `.env` é URL-encodada; no terminal use a senha real `WQGb#...` entre aspas simples) |
+| OAuth `redirect_uri_mismatch` | Confirme `NEXTAUTH_URL` no `.env` e callbacks nos consoles Google/GitHub |
+| HTTP 431 | Confirme `NODE_OPTIONS=--max-http-header-size=32768` no Application Manager |
+| Sem cadeado HTTPS | AutoSSL pode demorar algumas horas para subdomínio novo; acione o provedor se persistir |

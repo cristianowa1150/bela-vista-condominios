@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+// ─── Provider ──────────────────────────────────────────────────────────────
+// Desenvolvimento local:  provider = "sqlite"
+// Produção (MySQL/Linux): provider = "mysql"
+//
+// Para migrar para MySQL:
+//   1. Troque para provider = "mysql"
+//   2. Atualize DATABASE_URL em .env.local para mysql://user:pass@host:3306/db
+//   3. Execute: npm run db:generate && npm run db:deploy
+// ───────────────────────────────────────────────────────────────────────────
+datasource db {
+  provider = "mysql"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String? @db.Text
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String          @id @default(cuid())
+  name          String?
+  email         String?         @unique
+  emailVerified DateTime?
+  image         String? @db.LongText
+  role          String          @default("PENDING")
+  password      String?
+  accounts      Account[]
+  sessions      Session[]
+  transactions  Transaction[]
+  imports       ImportHistory[]
+  createdAt     DateTime        @default(now())
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Category {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  type         String
+  color        String        @default("#6366f1")
+  icon         String        @default("tag")
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Transaction {
+  id          String         @id @default(cuid())
+  userId      String
+  type        String
+  description String
+  amount      Float
+  date        DateTime
+  categoryId  String?
+  category    Category?      @relation(fields: [categoryId], references: [id])
+  source      String         @default("MANUAL")
+  importId    String?
+  import      ImportHistory? @relation(fields: [importId], references: [id])
+  notes       String? @db.Text
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model AccountStatement {
+  id            String    @id @default(cuid())
+  month         String    @unique // "2026-06"
+  saldoEmConta  Float     @default(0)
+  totalReceitas Float     @default(0)
+  totalDespesas Float     @default(0)
+  resultado     Float     @default(0)
+  status        String    @default("ABERTA")
+  notes         String? @db.Text
+  closedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model ImportHistory {
+  id           String        @id @default(cuid())
+  userId       String
+  filename     String
+  fileType     String
+  fileHash     String?
+  recordCount  Int
+  status       String        @default("SUCCESS")
+  errorMessage String? @db.Text
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+}
