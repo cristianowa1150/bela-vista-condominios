@@ -22,7 +22,7 @@ export async function GET(
   const { id } = await ctx.params;
 
   const transaction = await prisma.transaction.findFirst({
-    where: { id, userId: session.user.id },
+    where: { id },
     include: { category: true },
   });
 
@@ -43,7 +43,7 @@ export async function PUT(
   const { id } = await ctx.params;
 
   const existing = await prisma.transaction.findFirst({
-    where: { id, userId: session.user.id },
+    where: { id },
   });
 
   if (!existing) {
@@ -88,7 +88,7 @@ export async function DELETE(
   const { id } = await ctx.params;
 
   const existing = await prisma.transaction.findFirst({
-    where: { id, userId: session.user.id },
+    where: { id },
   });
 
   if (!existing) {

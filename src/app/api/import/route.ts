@@ -257,8 +257,8 @@ export async function GET() {
   const { session, error } = await authorize(ROLES_READ);
   if (error) return error;
 
+  // Histórico de importações é compartilhado entre os perfis aprovados
   const imports = await prisma.importHistory.findMany({
-    where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
     take: 20,
   });

@@ -1,13 +1,12 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { authorize, ROLES_READ } from "@/lib/authz";
 
 export async function GET(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  // Livro-caixa do condomínio é único: todos os perfis aprovados veem os
+  // mesmos dados (sem filtro por usuário)
+  const { error } = await authorize(ROLES_READ);
+  if (error) return error;
 
-  const userId = session.user.id;
   const { searchParams } = new URL(request.url);
 
   const startParam = searchParams.get("startDate");
@@ -29,7 +28,6 @@ export async function GET(request: Request) {
   } else {
     // Default: last month that has any transaction data
     const latestTx = await prisma.transaction.findFirst({
-      where: { userId },
       orderBy: { date: "desc" },
       select: { date: true },
     });
@@ -41,11 +39,11 @@ export async function GET(request: Request) {
   // Summary for selected period
   const [receitas, despesas] = await Promise.all([
     prisma.transaction.aggregate({
-      where: { userId, type: "RECEITA", date: { gte: startDate, lte: endDate } },
+      where: {type: "RECEITA", date: { gte: startDate, lte: endDate } },
       _sum: { amount: true },
     }),
     prisma.transaction.aggregate({
-      where: { userId, type: "DESPESA", date: { gte: startDate, lte: endDate } },
+      where: {type: "DESPESA", date: { gte: startDate, lte: endDate } },
       _sum: { amount: true },
     }),
   ]);
@@ -57,7 +55,7 @@ export async function GET(request: Request) {
   const groupByDay = diffDays <= 35;
 
   const allTx = await prisma.transaction.findMany({
-    where: { userId, date: { gte: startDate, lte: endDate } },
+    where: {date: { gte: startDate, lte: endDate } },
     select: { date: true, type: true, amount: true },
     orderBy: { date: "asc" },
   });
@@ -109,7 +107,7 @@ export async function GET(request: Request) {
   // Category breakdown for selected period
   const categoryBreakdown = await prisma.transaction.groupBy({
     by: ["categoryId", "type"],
-    where: { userId, date: { gte: startDate, lte: endDate } },
+    where: {date: { gte: startDate, lte: endDate } },
     _sum: { amount: true },
   });
 
@@ -127,7 +125,6 @@ export async function GET(request: Request) {
 
   // Recent transactions (last 8, no period filter)
   const recentTransactions = await prisma.transaction.findMany({
-    where: { userId },
     include: { category: true },
     orderBy: { date: "desc" },
     take: 8,
@@ -136,11 +133,11 @@ export async function GET(request: Request) {
   // All-time balance
   const [totalReceitas, totalDespesas] = await Promise.all([
     prisma.transaction.aggregate({
-      where: { userId, type: "RECEITA" },
+      where: {type: "RECEITA" },
       _sum: { amount: true },
     }),
     prisma.transaction.aggregate({
-      where: { userId, type: "DESPESA" },
+      where: {type: "DESPESA" },
       _sum: { amount: true },
     }),
   ]);
@@ -152,7 +149,6 @@ export async function GET(request: Request) {
 
   // Available months (for reference)
   const txDates = await prisma.transaction.findMany({
-    where: { userId },
     select: { date: true },
   });
   const monthSet = new Set<string>();

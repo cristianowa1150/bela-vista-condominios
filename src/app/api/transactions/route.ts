@@ -25,9 +25,8 @@ export async function GET(request: NextRequest) {
   const page = parseInt(searchParams.get("page") ?? "1");
   const limit = parseInt(searchParams.get("limit") ?? "20");
 
-  const where: Record<string, unknown> = {
-    userId: session.user.id,
-  };
+  // Livro-caixa compartilhado: sem filtro por usuário
+  const where: Record<string, unknown> = {};
 
   if (type) where.type = type;
   if (categoryId) where.categoryId = categoryId;
@@ -67,7 +66,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   await prisma.transaction.updateMany({
-    where: { userId: session.user.id, id: { in: ids } },
+    where: { id: { in: ids } },
     data: { categoryId: categoryId ?? null },
   });
 
