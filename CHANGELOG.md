@@ -7,6 +7,18 @@ Versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [2.1.2] — 2026-06-10
+
+### Corrigido
+- **Formulário de transação** — o seletor de categoria mostrava apenas as
+  categorias do tipo selecionado; agora exibe todas, agrupadas em
+  "Receitas" e "Despesas" (o grupo do tipo atual aparece primeiro)
+- **Edição de lançamentos de outros usuários** — a página de edição ainda
+  filtrava por dono (resquício anterior ao livro-caixa compartilhado) e
+  retornava "não encontrado" para lançamentos de terceiros
+
+---
+
 ## [2.1.1] — 2026-06-10
 
 ### Adicionado
