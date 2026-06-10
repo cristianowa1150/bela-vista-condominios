@@ -44,21 +44,23 @@ automaticamente (não é preciso configurar o Apache).
 
 ## 4. Variáveis de ambiente
 
-Na mesma tela da aplicação, em **Environment variables**, adicione:
+O pacote zip já inclui um arquivo **`.env`** na raiz com todos os valores
+preenchidos (banco, AUTH_SECRET, OAuth Google/GitHub) — o Next.js o lê
+automaticamente. Confirme que ele foi extraído junto (no Gerenciador de
+Arquivos, ative **Settings → Show Hidden Files** para vê-lo).
+
+> A senha do banco contém caracteres especiais (`#`, `&`) e por isso aparece
+> **URL-encodada** na `DATABASE_URL` (`%23`, `%26`) — não "corrija" isso.
+
+Apenas **uma** variável precisa ser cadastrada na tela do Setup Node.js App
+(em **Environment variables**), pois é uma flag do Node e não do app:
 
 | Nome | Valor |
 |---|---|
-| `DATABASE_URL` | `mysql://USUARIO:SENHA@localhost:3306/BANCO` (passo 1) |
-| `AUTH_SECRET` | resultado de `openssl rand -base64 32` (gere no Terminal) |
-| `NEXTAUTH_URL` | `https://contas.ibia.mg.gov.br` |
-| `AUTH_TRUST_HOST` | `true` |
-| `GOOGLE_CLIENT_ID` | (do Console Google) |
-| `GOOGLE_CLIENT_SECRET` | (do Console Google) |
-| `GITHUB_CLIENT_ID` | (do app GitHub de produção) |
-| `GITHUB_CLIENT_SECRET` | (do app GitHub de produção) |
 | `NODE_OPTIONS` | `--max-http-header-size=32768` |
 
-**Save** após cada variável.
+⚠️ O `.env` contém segredos: nunca o copie para `public_html` nem o envie
+para o GitHub (já está no `.gitignore`).
 
 ## 5. Instalar, migrar e compilar
 
