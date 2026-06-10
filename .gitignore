@@ -56,3 +56,4 @@ next-env.d.ts
 *.db-wal
 .env.cpanel
 schema-mysql.sql
+.claude/settings.local.json
