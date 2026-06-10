@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     "@libsql/client",
     "@prisma/adapter-libsql",
+    "@prisma/adapter-mariadb",
+    "mariadb",
+    "pdf-parse",
     "better-sqlite3",
   ],
 };

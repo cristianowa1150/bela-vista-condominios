@@ -11,7 +11,10 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "ts-node prisma/seed.ts",
-    "test": "tsx tests/unit.ts"
+    "test": "tsx tests/unit.ts",
+    "db:push": "prisma db push",
+    "db:mysql": "node scripts/db-provider.mjs mysql",
+    "db:sqlite": "node scripts/db-provider.mjs sqlite"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
