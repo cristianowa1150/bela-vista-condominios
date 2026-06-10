@@ -1,6 +1,6 @@
 # 🏢 Condomínio Bela Vista — Sistema de Gestão Financeira
 
-[![Versão](https://img.shields.io/badge/versão-2.0.0-blue)](./CHANGELOG.md)
+[![Versão](https://img.shields.io/badge/versão-2.0.1-blue)](./CHANGELOG.md)
 [![Licença](https://img.shields.io/badge/licença-CC%20BY%204.0-green)](./LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
 [![MySQL](https://img.shields.io/badge/banco-MySQL%208-orange)](https://mysql.com)

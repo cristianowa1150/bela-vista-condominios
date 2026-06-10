@@ -7,6 +7,41 @@ Versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [2.0.1] — 2026-06-10
+
+> Release de produção: sistema no ar em https://contas.ibia.mg.gov.br
+> (cPanel/Passenger + MySQL 8). Correções descobertas durante o deploy.
+
+### Adicionado
+- **Build standalone para cPanel** — pacote pré-compilado com `node_modules`
+  mínimo embutido; nenhum `npm install/build` no servidor (hospedagens
+  compartilhadas com limite de memória não suportam build local)
+- `prisma/schema.mysql.prisma` — schema de produção com tipos nativos
+  corretos (`TEXT` para tokens OAuth, `LONGTEXT` para avatar) e geração do
+  DDL `schema-mysql.sql` via `prisma migrate diff`
+- `server.js`/`app.js` de inicialização para Phusion Passenger, com
+  carregamento de `.env` e log da aplicação em `app.log`
+- Scripts `db:mysql`/`db:sqlite` para alternar o provider do Prisma
+- Guia completo `DEPLOY-CPANEL.md` (instalação, atualização, backup via
+  cron com `--no-tablespaces`, solução de problemas)
+
+### Corrigido
+- **Livro-caixa compartilhado** — leituras (dashboard, transações,
+  relatórios, histórico de importações) não filtram mais por usuário:
+  todos os perfis aprovados veem os mesmos dados do condomínio; o autor
+  de cada lançamento continua registrado para auditoria
+- **MySQL 8 `caching_sha2_password`** — `allowPublicKeyRetrieval` no
+  adapter mariadb (conexão local sem TLS) + pool limitado a 5 conexões
+
+### Notas de implantação
+- ModSecurity do Apache bloqueia o callback OAuth do Google (o parâmetro
+  `scope` retornado contém URLs e dispara regra anti-RFI) — desativar para
+  o domínio ou criar exceção para `/api/auth/callback/`
+- Hospedagem compartilhada exige limites adequados (memória ≥ 512 MB,
+  processos ≥ 100, arquivos abertos ≥ 1024)
+
+---
+
 ## [2.0.0] — 2026-06-09
 
 > Release de consolidação pré-produção: CRUD administrativo completo,
