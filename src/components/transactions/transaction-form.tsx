@@ -44,7 +44,20 @@ export default function TransactionForm({ transactionId, initialData }: Transact
     fetch("/api/categories").then((r) => r.json()).then(setCategories);
   }, []);
 
-  const filteredCategories = categories.filter((c) => c.type === form.type);
+  // Todas as categorias ficam disponíveis, agrupadas por tipo —
+  // o grupo correspondente ao tipo da transação aparece primeiro.
+  const receitaCategories = categories.filter((c) => c.type === "RECEITA");
+  const despesaCategories = categories.filter((c) => c.type === "DESPESA");
+  const groups =
+    form.type === "RECEITA"
+      ? [
+          { label: "Receitas", items: receitaCategories },
+          { label: "Despesas", items: despesaCategories },
+        ]
+      : [
+          { label: "Despesas", items: despesaCategories },
+          { label: "Receitas", items: receitaCategories },
+        ];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -181,15 +194,22 @@ export default function TransactionForm({ transactionId, initialData }: Transact
           className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
         >
           <option value="">Sem categoria</option>
-          {filteredCategories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
+          {groups.map(
+            (g) =>
+              g.items.length > 0 && (
+                <optgroup key={g.label} label={g.label}>
+                  {g.items.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )
+          )}
         </select>
-        {filteredCategories.length === 0 && (
+        {categories.length === 0 && (
           <p className="text-xs text-gray-400 mt-1">
-            Nenhuma categoria cadastrada para {form.type === "RECEITA" ? "receitas" : "despesas"}.{" "}
+            Nenhuma categoria cadastrada.{" "}
             <a href="/dashboard/categories" className="text-indigo-600 hover:underline">
               Criar categorias
             </a>

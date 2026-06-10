@@ -13,8 +13,10 @@ export default async function EditTransactionPage(
 
   const { id } = await props.params;
 
+  // Livro-caixa compartilhado: qualquer perfil com permissão pode editar
+  // qualquer lançamento (a API valida o perfil na gravação)
   const transaction = await prisma.transaction.findFirst({
-    where: { id, userId: session.user.id },
+    where: { id },
   });
 
   if (!transaction) notFound();
