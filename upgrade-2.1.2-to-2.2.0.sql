@@ -2,6 +2,7 @@
 CREATE TABLE `InvestmentStatement` (
     `id` VARCHAR(191) NOT NULL,
     `date` DATETIME(3) NOT NULL,
+    `kind` VARCHAR(191) NOT NULL DEFAULT 'MOVIMENTACAO',
     `totalValue` DOUBLE NOT NULL,
     `rendimento` DOUBLE NOT NULL DEFAULT 0,
     `irPrevisto` DOUBLE NOT NULL DEFAULT 0,

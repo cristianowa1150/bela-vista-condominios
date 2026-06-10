@@ -5,31 +5,34 @@ import { computePosition, matchContaInvestmentFlow } from "@/lib/investments";
 /**
  * Dados consolidados de investimentos.
  *
- * Fontes:
- *  - Extratos DTVM (fotografias): rendimento acumulado, IR e IOF previstos —
- *    sempre da fotografia mais recente (acumulados; nunca somados entre si).
- *  - Fluxos (principal): aplicações/resgates dos extratos DTVM (se houver)
- *    UNIDOS aos lançamentos do extrato da conta corrente (despesas
- *    "APLICAÇÃO…" / receitas "RESGATE…"), com dedup entre as fontes.
+ * Precedência da posição total:
+ *  1. Extrato de POSIÇÃO (PDF "Posição de Renda Fixa") — carteira oficial do
+ *     banco: bruto, aplicado (= bruto − rendimento) e IR/IOF na data.
+ *  2. Sem posição: cálculo = aplicações(conta) − resgates + rendimento do
+ *     extrato de MOVIMENTAÇÃO mais recente.
  *
- * Posição total = aplicado − resgatado + rendimento (o LEDGERBAL do OFX DTVM
- * é o saldo da conta corrente e é ignorado — ver src/lib/investments.ts).
+ * Conferência cruzada: o principal oficial é comparado com o derivado dos
+ * fluxos da conta corrente — divergência indica extrato da conta faltante.
  */
 export async function GET() {
   const { error } = await authorize(ROLES_READ);
   if (error) return error;
 
-  const [statements, dtvmFlows, latest, contaTx] = await Promise.all([
+  const [statements, dtvmFlows, latestPosicao, latestMov, contaTx] = await Promise.all([
     prisma.investmentStatement.findMany({ orderBy: { date: "asc" } }),
     prisma.investmentMovement.findMany({
       where: { snapshot: false },
       orderBy: { date: "desc" },
     }),
     prisma.investmentStatement.findFirst({
+      where: { kind: "POSICAO" },
       orderBy: { date: "desc" },
-      include: {
-        movements: { where: { snapshot: true }, orderBy: { amount: "desc" } },
-      },
+      include: { movements: { where: { snapshot: true }, orderBy: { amount: "desc" } } },
+    }),
+    prisma.investmentStatement.findFirst({
+      where: { kind: "MOVIMENTACAO" },
+      orderBy: { date: "desc" },
+      include: { movements: { where: { snapshot: true }, orderBy: { amount: "desc" } } },
     }),
     prisma.transaction.findMany({
       where: {
@@ -62,7 +65,6 @@ export async function GET() {
   const keyOf = (date: Date, type: string, amount: number) =>
     `${date.toISOString().slice(0, 10)}|${type}|${amount.toFixed(2)}`;
 
-  // Extrato DTVM tem prioridade (tem FITID)
   for (const f of dtvmFlows) {
     if (f.type !== "APLICACAO" && f.type !== "RESGATE") continue;
     flows.push({
@@ -71,20 +73,17 @@ export async function GET() {
     });
     seen.add(keyOf(f.date, f.type, f.amount));
   }
-
-  // Conta corrente: aplicações (despesa) e resgates (receita)
   for (const t of contaTx) {
     const type = matchContaInvestmentFlow(t.description, t.type);
     if (!type) continue;
     const k = keyOf(t.date, type, t.amount);
-    if (seen.has(k)) continue; // mesmo fluxo já veio do extrato DTVM
+    if (seen.has(k)) continue;
     seen.add(k);
     flows.push({
       id: t.id, date: t.date, type,
       description: t.description, amount: t.amount, source: "CONTA",
     });
   }
-
   flows.sort((a, b) => b.date.getTime() - a.date.getTime());
 
   const totalAplicado = round2(
@@ -93,18 +92,45 @@ export async function GET() {
   const totalResgatado = round2(
     flows.filter((f) => f.type === "RESGATE").reduce((s, f) => s + f.amount, 0)
   );
-  const principal = round2(totalAplicado - totalResgatado);
+  const principalFluxos = round2(totalAplicado - totalResgatado);
 
-  const rendimento = latest ? round2(latest.rendimento) : 0;
-  const irPrevisto = latest ? round2(latest.irPrevisto) : 0;
-  const iofPrevisto = latest ? round2(latest.iofPrevisto) : 0;
-  const posicao = computePosition(totalAplicado, totalResgatado, rendimento);
+  // ── Posição: oficial (POSICAO) tem precedência sobre o cálculo ───────────
+  const usePosicao =
+    latestPosicao &&
+    (!latestMov || latestPosicao.date.getTime() >= latestMov.date.getTime() - 45 * 86400_000);
+
+  let posicao: number, principal: number, rendimento: number;
+  let irPrevisto: number, iofPrevisto: number;
+  let fonte: "POSICAO" | "CALCULADO";
+  let latest = usePosicao ? latestPosicao! : latestMov;
+
+  if (usePosicao) {
+    posicao = round2(latestPosicao!.totalValue);
+    rendimento = round2(latestPosicao!.rendimento);
+    principal = round2(posicao - rendimento); // = aplicado oficial do extrato
+    irPrevisto = round2(latestPosicao!.irPrevisto);
+    iofPrevisto = round2(latestPosicao!.iofPrevisto);
+    fonte = "POSICAO";
+  } else {
+    rendimento = latestMov ? round2(latestMov.rendimento) : 0;
+    principal = principalFluxos;
+    posicao = computePosition(totalAplicado, totalResgatado, rendimento);
+    irPrevisto = latestMov ? round2(latestMov.irPrevisto) : 0;
+    iofPrevisto = latestMov ? round2(latestMov.iofPrevisto) : 0;
+    fonte = "CALCULADO";
+  }
   const liquidoEstimado = round2(posicao - irPrevisto - iofPrevisto);
 
+  // Conferência cruzada: principal oficial × fluxos da conta
+  const divergenciaPrincipal =
+    fonte === "POSICAO" ? round2(principal - principalFluxos) : 0;
+
   // ── Evolução: posição em cada data de extrato ────────────────────────────
-  // posição(data) = fluxos até a data + rendimento acumulado daquele extrato
   const flowsAsc = [...flows].sort((a, b) => a.date.getTime() - b.date.getTime());
   const evolution = statements.map((s) => {
+    if (s.kind === "POSICAO") {
+      return { date: s.date, totalValue: round2(s.totalValue), rendimento: round2(s.rendimento) };
+    }
     const endOfDay = new Date(s.date);
     endOfDay.setHours(23, 59, 59, 999);
     let acc = 0;
@@ -129,6 +155,8 @@ export async function GET() {
           irPrevisto,
           iofPrevisto,
           liquidoEstimado,
+          fonte,
+          divergenciaPrincipal,
           filename: latest.filename,
           snapshotLines: latest.movements.map((m) => ({
             type: m.type,

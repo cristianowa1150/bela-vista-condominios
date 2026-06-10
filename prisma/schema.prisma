@@ -124,7 +124,9 @@ model AccountStatement {
 model InvestmentStatement {
   id          String               @id @default(cuid())
   date        DateTime             @unique // DTASOF do extrato
-  totalValue  Float // LEDGERBAL — posição total na data
+  // MOVIMENTACAO (acumulados do extrato) | POSICAO (carteira oficial do banco)
+  kind        String               @default("MOVIMENTACAO")
+  totalValue  Float // POSICAO: bruto oficial; MOVIMENTACAO: saldo informativo do arquivo
   rendimento  Float                @default(0) // Σ rendimentos "até esta data"
   irPrevisto  Float                @default(0) // Σ I.R. previsto p/ resgate total
   iofPrevisto Float                @default(0) // Σ I.O.F. previsto

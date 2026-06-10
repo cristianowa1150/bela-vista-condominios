@@ -22,6 +22,8 @@ interface InvestmentData {
     irPrevisto: number;
     iofPrevisto: number;
     liquidoEstimado: number;
+    fonte: "POSICAO" | "CALCULADO";
+    divergenciaPrincipal: number;
     filename: string;
     snapshotLines: SnapshotLine[];
   } | null;
@@ -250,11 +252,30 @@ export default function InvestmentsPage() {
         </div>
       ) : (
         <>
+          {/* Conferência cruzada: posição oficial × fluxos da conta */}
+          {latest.fonte === "POSICAO" && Math.abs(latest.divergenciaPrincipal) > 0.01 && (
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-amber-800 text-sm">
+                <strong>Conferência:</strong> o valor aplicado oficial ({formatCurrency(latest.principal)})
+                difere em <strong>{formatCurrency(Math.abs(latest.divergenciaPrincipal))}</strong> das
+                aplicações registradas nas Transações ({formatCurrency(latest.principal - latest.divergenciaPrincipal)}).
+                {latest.divergenciaPrincipal > 0
+                  ? " Provável extrato da conta corrente faltando — importe o período inicial em Importar."
+                  : " Verifique lançamentos duplicados nas Transações."}
+              </p>
+            </div>
+          )}
+
           {/* Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card title={`Posição Total (${formatDate(latest.date)})`} value={latest.totalValue}
               icon={<Landmark className="w-5 h-5 text-emerald-600" />} bg="bg-emerald-50" border="border-emerald-200" color="text-emerald-700"
-              subtitle={`aplicações − resgates + rendimento (${formatCurrency(latest.principal)} + ${formatCurrency(latest.rendimento)})`} />
+              subtitle={
+                latest.fonte === "POSICAO"
+                  ? `extrato oficial de posição · aplicado ${formatCurrency(latest.principal)} + rendimento ${formatCurrency(latest.rendimento)}`
+                  : `calculado: aplicações − resgates + rendimento (${formatCurrency(latest.principal)} + ${formatCurrency(latest.rendimento)})`
+              } />
             <Card title="Rendimento Acumulado" value={latest.rendimento}
               icon={<TrendingUp className="w-5 h-5 text-green-600" />} bg="bg-green-50" border="border-green-200" color="text-green-700" />
             <Card title="IR + IOF Previstos" value={latest.irPrevisto + latest.iofPrevisto}

@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { authorize, ROLES_IMPORT, round2 } from "@/lib/authz";
 import { parseOFXEntries } from "@/lib/parsers/ofx-parser";
-import { parseStatementText } from "@/lib/parsers/pdf-parser";
+import { parseStatementText, extractPdfText } from "@/lib/parsers/pdf-parser";
+import { isPosicaoStatement, parsePosicaoText } from "@/lib/parsers/posicao-parser";
 import {
   classifyEntries,
   snapshotTotals,
@@ -11,6 +12,10 @@ import {
   dedupFlows,
   type RawEntry,
 } from "@/lib/investments";
+
+const formatBR = (n: number) =>
+  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const brDate = (iso: string) => iso.split("-").reverse().join("/");
 
 /**
  * Importação de extratos de investimento (OFX ou PDF).
@@ -41,6 +46,136 @@ export async function POST(request: NextRequest) {
   const previousImport = await prisma.investmentStatement.findFirst({
     where: { fileHash },
   });
+
+  // ── PDF "Extrato de Posição de Renda Fixa": documento autoritativo ───────
+  if (ext === "pdf") {
+    let pdfText: string;
+    try {
+      pdfText = await extractPdfText(file);
+    } catch (err) {
+      return Response.json(
+        { error: `Não foi possível ler o PDF: ${String(err)}` },
+        { status: 422 }
+      );
+    }
+
+    if (isPosicaoStatement(pdfText)) {
+      const pos = parsePosicaoText(pdfText);
+
+      // Integridade é bloqueante: extrato de posição inconsistente não entra
+      if (pos.errors.length > 0 || !pos.date) {
+        return Response.json(
+          {
+            error:
+              "O extrato de posição não passou na validação de integridade: " +
+              pos.errors.slice(0, 3).join(" "),
+            errors: pos.errors,
+          },
+          { status: 422 }
+        );
+      }
+
+      const existingStatement = await prisma.investmentStatement.findUnique({
+        where: { date: new Date(pos.date + "T12:00:00Z") },
+      });
+
+      if (previewOnly) {
+        return Response.json({
+          kind: "POSICAO",
+          snapshotDate: pos.date,
+          totalValue: pos.totals.bruto,
+          aplicadoOficial: pos.totals.aplicado,
+          liquidoOficial: pos.totals.liquido,
+          rendimento: round2(pos.totals.bruto - pos.totals.aplicado),
+          irPrevisto: pos.totals.irIof,
+          iofPrevisto: 0,
+          snapshotLines: pos.ativos.length,
+          flowsTotal: 0,
+          flowsNew: 0,
+          flowsDuplicated: 0,
+          willReplaceSnapshot: !!existingStatement,
+          alreadyImported: previousImport
+            ? { filename: previousImport.filename, importedAt: previousImport.createdAt }
+            : null,
+          preview: pos.ativos.slice(0, 20).map((a) => ({
+            date: a.dataInicio,
+            type: "POSICAO",
+            description: `Nota ${a.nota} · aplicado ${a.aplicado.toFixed(2)} · bruto ${a.bruto.toFixed(2)}`,
+            amount: a.bruto,
+          })),
+          errors: [],
+        });
+      }
+
+      if (previousImport) {
+        return Response.json(
+          {
+            error:
+              `Importação bloqueada: este arquivo é idêntico a "${previousImport.filename}", ` +
+              `importado em ${new Date(previousImport.createdAt).toLocaleString("pt-BR")}.`,
+            reason: "DUPLICATE_FILE",
+          },
+          { status: 409 }
+        );
+      }
+
+      const stmtDate = new Date(pos.date + "T12:00:00Z");
+      const statement = await prisma.investmentStatement.upsert({
+        where: { date: stmtDate },
+        create: {
+          date: stmtDate,
+          kind: "POSICAO",
+          totalValue: pos.totals.bruto, // posição oficial do banco
+          rendimento: round2(pos.totals.bruto - pos.totals.aplicado),
+          irPrevisto: pos.totals.irIof,
+          iofPrevisto: 0,
+          filename,
+          fileHash,
+          userId: session.user.id,
+        },
+        update: {
+          kind: "POSICAO",
+          totalValue: pos.totals.bruto,
+          rendimento: round2(pos.totals.bruto - pos.totals.aplicado),
+          irPrevisto: pos.totals.irIof,
+          iofPrevisto: 0,
+          filename,
+          fileHash,
+        },
+      });
+
+      // Linhas da fotografia: um registro por ativo (substitui as da data)
+      await prisma.investmentMovement.deleteMany({
+        where: { statementId: statement.id, snapshot: true },
+      });
+      await prisma.investmentMovement.createMany({
+        data: pos.ativos.map((a) => ({
+          date: stmtDate,
+          type: "RENDIMENTO",
+          description:
+            `Nota ${a.nota} · aplicado ${formatBR(a.aplicado)} em ${brDate(a.dataInicio)} · ` +
+            `bruto ${formatBR(a.bruto)} · líquido ${formatBR(a.liquido)}`,
+          amount: a.rendimento,
+          fitid: a.nota,
+          snapshot: true,
+          statementId: statement.id,
+          userId: session.user.id,
+        })),
+      });
+
+      return Response.json({
+        success: true,
+        kind: "POSICAO",
+        snapshotDate: pos.date,
+        totalValue: statement.totalValue,
+        aplicadoOficial: pos.totals.aplicado,
+        flowsImported: 0,
+        flowsDuplicated: 0,
+        snapshotReplaced: !!existingStatement,
+      });
+    }
+    // Não é extrato de posição → segue o fluxo heurístico de movimentações
+  }
 
   // ── Parse ────────────────────────────────────────────────────────────────
   let raw: RawEntry[] = [];
@@ -165,7 +300,8 @@ export async function POST(request: NextRequest) {
     where: { date: stmtDate },
     create: {
       date: stmtDate,
-      totalValue: round2(saldo ?? 0),
+      kind: "MOVIMENTACAO",
+      totalValue: round2(saldo ?? 0), // saldo do arquivo (informativo)
       rendimento: snap.rendimento,
       irPrevisto: snap.irPrevisto,
       iofPrevisto: snap.iofPrevisto,
@@ -176,6 +312,7 @@ export async function POST(request: NextRequest) {
       userId: session.user.id,
     },
     update: {
+      kind: "MOVIMENTACAO",
       totalValue: round2(saldo ?? 0),
       rendimento: snap.rendimento,
       irPrevisto: snap.irPrevisto,

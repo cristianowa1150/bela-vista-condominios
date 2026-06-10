@@ -7,6 +7,7 @@
  */
 import { parseAmount } from "../src/lib/parsers/csv-parser";
 import { parseOFX, parseOFXEntries } from "../src/lib/parsers/ofx-parser";
+import { parsePosicaoText, isPosicaoStatement } from "../src/lib/parsers/posicao-parser";
 import {
   classifyInvestmentMemo,
   classifyEntries,
@@ -232,6 +233,42 @@ DATA:OFXSGML
     matchContaInvestmentFlow("APLICACAO CDB", "RECEITA"), null);
   eq("descrição comum não casa",
     matchContaInvestmentFlow("PAGTO ENERGIA", "DESPESA"), null);
+
+  // ── Extrato de Posição de Renda Fixa (PDF Inter — layout real) ────────────
+  console.log("\nparsePosicaoText");
+  const posTxt = [
+    "EXTRATO DE POSIÇÃO DE RENDA FIXA",
+    "001 Conta:\tAgência: 25907360 Posição em: 10/06/2026",
+    "Nota Data Início Data",
+    "R$ 6,23\t523533540 10/02/2026 01/02/2028 R$ 625,00 R$ 27,71\t100% do CDI\tCDB 22,5%\tR$ 646,48\tR$ 652,71\tR$ 0,00\tR$ 0,00",
+    "R$ 1,21\t524925742 12/02/2026 03/02/2028 R$ 125,00 R$ 5,39\t100% do CDI\tCDB 22,5%\tR$ 129,18\tR$ 130,39\tR$ 0,00\tR$ 0,00",
+    "R$ 0,00\t627657354 10/06/2026 31/05/2028 R$ 250,00 R$ 0,00\t100% do CDI\tCDB 22,5%\tR$ 250,00\tR$ 250,00\tR$ 0,00\tR$ 0,00",
+    "R$ 775,66\tR$ 783,10 R$ 750,00\tValor Líquido Total:\tValor Bruto Total: Valor Aplicado Total:",
+  ].join("\n");
+  eq("detecta extrato de posição", isPosicaoStatement(posTxt), true);
+  eq("não confunde extrato comum", isPosicaoStatement("Extrato Conta Corrente"), false);
+  const pos = parsePosicaoText(posTxt);
+  eq("data da posição", pos.date, "2026-06-10");
+  eq("3 ativos", pos.ativos.length, 3);
+  eq("ativo 1: aplicado/rendimento/bruto/líquido",
+    [pos.ativos[0].aplicado, pos.ativos[0].rendimento, pos.ativos[0].bruto, pos.ativos[0].liquido],
+    [625, 27.71, 652.71, 646.48]);
+  eq("total aplicado", pos.totals.aplicado, 1000);
+  eq("total bruto", pos.totals.bruto, 1033.1);
+  eq("total líquido", pos.totals.liquido, 1025.66);
+  eq("total IR/IOF", pos.totals.irIof, 7.44);
+  // totais impressos (775.66/783.10/750.00) ≠ calculados → validação acusa
+  eq("totais impressos divergentes geram erro", pos.errors.length > 0, true);
+
+  // versão consistente: totais impressos = calculados → sem erros
+  const posOk = posTxt.replace(
+    "R$ 775,66\tR$ 783,10 R$ 750,00",
+    "R$ 1.025,66\tR$ 1.033,10 R$ 1.000,00"
+  );
+  const pok = parsePosicaoText(posOk);
+  eq("extrato consistente passa sem erros", pok.errors, []);
+  eq("bruto = aplicado + rendimento (linha a linha)",
+    pok.ativos.every((a) => Math.abs(a.bruto - (a.aplicado + a.rendimento)) <= 0.02), true);
 
   // ── Resultado ─────────────────────────────────────────────────────────────
   console.log(`\n${"─".repeat(50)}\n${passed} passaram, ${failed} falharam`);
