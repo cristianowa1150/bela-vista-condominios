@@ -32,10 +32,18 @@ export default function ThemeSelector() {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("theme") as Theme | null;
-      if (saved) setTheme(saved);
-    } catch {}
+    // Fonte da verdade é o atributo data-theme (aplicado pelo shell com a
+    // preferência do usuário logado) — sincroniza o rótulo com ele.
+    const sync = () => {
+      const t = document.documentElement.getAttribute("data-theme") as Theme | null;
+      if (t) setTheme(t);
+    };
+    sync();
+    const observer = new MutationObserver((muts) => {
+      for (const m of muts) if (m.attributeName === "data-theme") sync();
+    });
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {

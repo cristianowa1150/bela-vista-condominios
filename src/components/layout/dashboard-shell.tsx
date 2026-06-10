@@ -67,24 +67,20 @@ export default function DashboardShell({ role, user, initialPrefs, favicon, chil
     // collapsed (preferência de dispositivo, fica local)
     if (localStorage.getItem("sidebar-collapsed") === "true") setCollapsed(true);
 
-    // Tema do usuário
-    if (initialPrefs?.theme) {
-      document.documentElement.setAttribute("data-theme", initialPrefs.theme);
-      try { localStorage.setItem("theme", initialPrefs.theme); } catch {}
-    }
+    // Tema do usuário — sem preferência salva, volta ao padrão (o cache do
+    // navegador pode conter o tema do usuário ANTERIOR nesta máquina)
+    const theme = initialPrefs?.theme ?? "light";
+    document.documentElement.setAttribute("data-theme", theme);
+    try { localStorage.setItem("theme", theme); } catch {}
 
-    // Paleta do usuário
-    if (initialPrefs?.palette) {
-      const found = SIDEBAR_PALETTES.find((p) => p.id === initialPrefs.palette);
-      if (found) {
-        setPalette(found);
-        applyPaletteToRoot(found);
-        try { localStorage.setItem("sidebar-palette", found.id); } catch {}
-      }
-    } else {
-      const saved = loadPalette();
-      if (saved.id !== DEFAULT_PALETTE.id) setPalette(saved);
-    }
+    // Paleta do usuário — idem: sem preferência, aplica a padrão
+    const found = initialPrefs?.palette
+      ? SIDEBAR_PALETTES.find((p) => p.id === initialPrefs.palette)
+      : undefined;
+    const paletteToApply = found ?? DEFAULT_PALETTE;
+    setPalette(paletteToApply);
+    applyPaletteToRoot(paletteToApply);
+    try { localStorage.setItem("sidebar-palette", paletteToApply.id); } catch {}
 
     // Logo do menu lateral do usuário
     if (initialPrefs?.sidebarLogo) {
