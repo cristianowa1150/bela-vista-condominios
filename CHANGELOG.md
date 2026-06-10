@@ -7,6 +7,15 @@ Versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [2.1.1] — 2026-06-10
+
+### Adicionado
+- **Dashboard: donut Receita vs Despesa** — gráfico de rosca com a proporção
+  do total do período (fatias verde/vermelha), resultado do período no centro
+  e legenda com valores em R$ e percentuais; responde ao filtro de período
+
+---
+
 ## [2.1.0] — 2026-06-10
 
 > Personalização por usuário e identidade visual controlada pelo administrador.
