@@ -7,6 +7,30 @@ Versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [2.1.0] — 2026-06-10
+
+> Personalização por usuário e identidade visual controlada pelo administrador.
+
+### Adicionado
+- **Preferências visuais individuais por usuário** — tema (Claro/Escuro/
+  Sépia/Apple), paleta de cores do menu e logo do menu lateral são salvos
+  no banco (coluna `User.preferences`, JSON) e aplicados em qualquer
+  navegador/dispositivo ao fazer login; API `GET/PUT /api/user/prefs`
+- **Favicon global do sistema** — definido apenas pelo administrador e
+  exibido para todos os usuários (tabela `AppSetting`); API
+  `/api/settings/favicon` (leitura pública, escrita restrita a ADMIN)
+- Script `upgrade-2.0.1-to-2.1.0.sql` para atualização do banco em produção
+
+### Alterado
+- Botão de alteração de favicon no cabeçalho visível somente para ADMIN
+- `localStorage` rebaixado a cache de primeiro paint — a fonte da verdade
+  das preferências é o banco de dados
+- Usuário sem preferência salva recebe o padrão (tema Claro, paleta
+  padrão) — nunca herda escolhas de outro usuário no mesmo navegador
+- Pacote standalone passa a incluir a pasta `tmp/` (restart do Passenger)
+
+---
+
 ## [2.0.1] — 2026-06-10
 
 > Release de produção: sistema no ar em https://contas.ibia.mg.gov.br
