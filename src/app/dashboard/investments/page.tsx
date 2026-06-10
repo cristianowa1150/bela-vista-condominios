@@ -17,6 +17,7 @@ interface InvestmentData {
   latest: {
     date: string;
     totalValue: number;
+    principal: number;
     rendimento: number;
     irPrevisto: number;
     iofPrevisto: number;
@@ -26,7 +27,7 @@ interface InvestmentData {
   } | null;
   evolution: Array<{ date: string; totalValue: number; rendimento: number }>;
   totals: { aplicado: number; resgatado: number };
-  movements: Array<{ id: string; date: string; type: string; description: string; amount: number }>;
+  movements: Array<{ id: string; date: string; type: string; description: string; amount: number; source: string }>;
 }
 
 interface Preview {
@@ -132,8 +133,8 @@ export default function InvestmentsPage() {
   const movements = data?.movements ?? [];
   const totals = data?.totals ?? { aplicado: 0, resgatado: 0 };
 
-  // Composição da posição: principal estimado = posição − rendimento acumulado
-  const principal = latest ? Math.max(0, latest.totalValue - latest.rendimento) : 0;
+  // Principal líquido vem da API: Σ aplicações − Σ resgates (extrato da conta + DTVM)
+  const principal = latest ? Math.max(0, latest.principal) : 0;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -198,8 +199,8 @@ export default function InvestmentsPage() {
                   <p className="font-semibold text-gray-800">{formatDate(preview.snapshotDate)}</p>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500">Posição total</p>
-                  <p className="font-semibold text-emerald-700">
+                  <p className="text-xs text-gray-500">Saldo conta no arquivo (informativo)</p>
+                  <p className="font-semibold text-gray-600">
                     {preview.totalValue !== null ? formatCurrency(preview.totalValue) : "—"}
                   </p>
                 </div>
@@ -252,7 +253,8 @@ export default function InvestmentsPage() {
           {/* Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card title={`Posição Total (${formatDate(latest.date)})`} value={latest.totalValue}
-              icon={<Landmark className="w-5 h-5 text-emerald-600" />} bg="bg-emerald-50" border="border-emerald-200" color="text-emerald-700" />
+              icon={<Landmark className="w-5 h-5 text-emerald-600" />} bg="bg-emerald-50" border="border-emerald-200" color="text-emerald-700"
+              subtitle={`aplicações − resgates + rendimento (${formatCurrency(latest.principal)} + ${formatCurrency(latest.rendimento)})`} />
             <Card title="Rendimento Acumulado" value={latest.rendimento}
               icon={<TrendingUp className="w-5 h-5 text-green-600" />} bg="bg-green-50" border="border-green-200" color="text-green-700" />
             <Card title="IR + IOF Previstos" value={latest.irPrevisto + latest.iofPrevisto}
@@ -360,6 +362,9 @@ export default function InvestmentsPage() {
                         <span className="text-gray-500 text-xs whitespace-nowrap">{formatDate(m.date)}</span>
                         <span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
                         <span className="flex-1 text-gray-700 truncate">{m.description}</span>
+                        <span className="text-[10px] text-gray-400 border border-gray-200 rounded px-1 py-0.5 whitespace-nowrap">
+                          {m.source === "CONTA" ? "extrato conta" : "extrato DTVM"}
+                        </span>
                         <span className={`font-semibold ${m.type === "RESGATE" ? "text-amber-600" : "text-green-600"}`}>
                           {m.type === "RESGATE" ? "-" : "+"}{formatCurrency(m.amount)}
                         </span>
@@ -402,9 +407,11 @@ export default function InvestmentsPage() {
           </div>
 
           <p className="text-xs text-gray-400">
-            Posição, rendimento e impostos vêm sempre do extrato mais recente (valores acumulados na data
-            do extrato — nunca somados entre importações). Aplicações e resgates são consolidados de todos
-            os extratos, com deduplicação automática por identificador do banco (FITID).
+            <strong>Metodologia:</strong> Posição Total = aplicações − resgates + rendimento acumulado.
+            O principal vem dos lançamentos de APLICAÇÃO/RESGATE do extrato da conta corrente (importados
+            em Transações) e dos extratos DTVM, com deduplicação entre as fontes; rendimento, IR e IOF vêm
+            sempre do extrato DTVM mais recente (acumulados na data — nunca somados entre importações).
+            O saldo (LEDGERBAL) do arquivo OFX da DTVM é ignorado por refletir a conta corrente, não a carteira.
           </p>
         </>
       )}

@@ -13,6 +13,8 @@ import {
   snapshotTotals,
   flowEntries,
   dedupFlows,
+  computePosition,
+  matchContaInvestmentFlow,
 } from "../src/lib/investments";
 import { parseStatementText } from "../src/lib/parsers/pdf-parser";
 import { splitWithExisting, txKey } from "../src/lib/import-dedup";
@@ -213,6 +215,23 @@ DATA:OFXSGML
   eq("sem FITID: dedup por chave normalizada", d2.duplicates, 1);
   const d3 = dedupFlows(flows, []);
   eq("banco vazio: importa os 2 fluxos", d3.fresh.length, 2);
+
+  // ── Investimentos: posição (LEDGERBAL do DTVM é saldo da conta, ignorado) ─
+  console.log("\ncomputePosition + matchContaInvestmentFlow");
+  eq("posição = aplicado − resgatado + rendimento",
+    computePosition(6898.68, 0, 80.11), 6978.79);
+  eq("posição com resgate", computePosition(1000, 200, 15.5), 815.5);
+  eq("centavos exatos", computePosition(0.1, 0, 0.2), 0.3);
+  eq("despesa APLICACAO na conta → aporte",
+    matchContaInvestmentFlow("APLICACAO CDB DI", "DESPESA"), "APLICACAO");
+  eq("acentuada minúscula também",
+    matchContaInvestmentFlow("Aplicação automática RDB", "DESPESA"), "APLICACAO");
+  eq("receita RESGATE na conta → retirada",
+    matchContaInvestmentFlow("RESGATE CDB", "RECEITA"), "RESGATE");
+  eq("receita APLICACAO não é aporte (estorno)",
+    matchContaInvestmentFlow("APLICACAO CDB", "RECEITA"), null);
+  eq("descrição comum não casa",
+    matchContaInvestmentFlow("PAGTO ENERGIA", "DESPESA"), null);
 
   // ── Resultado ─────────────────────────────────────────────────────────────
   console.log(`\n${"─".repeat(50)}\n${passed} passaram, ${failed} falharam`);

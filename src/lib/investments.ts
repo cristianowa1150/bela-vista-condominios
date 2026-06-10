@@ -101,6 +101,34 @@ export function flowEntries(entries: ClassifiedEntry[]): ClassifiedEntry[] {
   return entries.filter((e) => !e.snapshot);
 }
 
+/**
+ * Posição total estimada da carteira:
+ *   principal líquido (aplicado − resgatado) + rendimento acumulado.
+ *
+ * NÃO usar o LEDGERBAL do OFX DTVM: o Inter preenche esse campo com o saldo
+ * da CONTA CORRENTE (o cabeçalho do arquivo é BANKACCTFROM/CHECKING), não com
+ * o total investido — verificado com extratos reais (saldo caía enquanto a
+ * carteira crescia).
+ */
+export function computePosition(aplicado: number, resgatado: number, rendimento: number): number {
+  return round2(aplicado - resgatado + rendimento);
+}
+
+/**
+ * Identifica aplicações/resgates de investimento no extrato da CONTA CORRENTE
+ * (onde o principal de fato aparece): despesa "APLICAÇÃO..." = aporte;
+ * receita "RESGATE..." = retirada.
+ */
+export function matchContaInvestmentFlow(
+  description: string,
+  txType: string
+): "APLICACAO" | "RESGATE" | null {
+  const m = norm(description);
+  if (m.includes("APLICAC") && txType === "DESPESA") return "APLICACAO";
+  if (m.includes("RESGATE") && txType === "RECEITA") return "RESGATE";
+  return null;
+}
+
 export interface ExistingFlow {
   date: Date;
   type: string;
