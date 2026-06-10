@@ -6,7 +6,14 @@
  * (OFX, texto livre/PDF/TXT) e deduplicação com multiplicidade.
  */
 import { parseAmount } from "../src/lib/parsers/csv-parser";
-import { parseOFX } from "../src/lib/parsers/ofx-parser";
+import { parseOFX, parseOFXEntries } from "../src/lib/parsers/ofx-parser";
+import {
+  classifyInvestmentMemo,
+  classifyEntries,
+  snapshotTotals,
+  flowEntries,
+  dedupFlows,
+} from "../src/lib/investments";
 import { parseStatementText } from "../src/lib/parsers/pdf-parser";
 import { splitWithExisting, txKey } from "../src/lib/import-dedup";
 import { round2 } from "../src/lib/money";
@@ -142,6 +149,70 @@ async function main() {
   eq("chave arredonda float (120.50000001 ≈ 120.5)",
     txKey(new Date("2026-06-05T12:00:00Z"), "DESPESA", 120.50000001, "X"),
     txKey(new Date("2026-06-05T12:00:00Z"), "DESPESA", 120.5, "X"));
+
+  // ── Investimentos: classificação de MEMOs ─────────────────────────────────
+  console.log("\nclassifyInvestmentMemo");
+  eq("rendimento até esta data → snapshot",
+    classifyInvestmentMemo("RENDIMENTO ATÉ ESTA DATA"), { type: "RENDIMENTO", snapshot: true });
+  eq("IR p/ resgate total → IR_PREVISTO (não RESGATE)",
+    classifyInvestmentMemo("PREVISÃO DE I.R. PARA RESGATE TOTAL ATÉ ESTA DATA"),
+    { type: "IR_PREVISTO", snapshot: true });
+  eq("IOF → IOF_PREVISTO",
+    classifyInvestmentMemo("PREVISÃO PARA I.O.F. ATÉ ESTA DATA(ISENTO APÓS 30 DIAS DA APLICAÇÃO)"),
+    { type: "IOF_PREVISTO", snapshot: true });
+  eq("aplicação é fluxo",
+    classifyInvestmentMemo("APLICAÇÃO CDB DI"), { type: "APLICACAO", snapshot: false });
+  eq("resgate é fluxo",
+    classifyInvestmentMemo("RESGATE CDB DI"), { type: "RESGATE", snapshot: false });
+
+  // ── Investimentos: extrato OFX real (Inter DTVM, parcial) ─────────────────
+  console.log("\nparseOFXEntries + matemática do extrato DTVM");
+  const dtvm = `OFXHEADER:100
+DATA:OFXSGML
+<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>BRL</CURDEF>
+<BANKTRANLIST><DTSTART>20260401</DTSTART><DTEND>20260610</DTEND>
+<STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>20260610</DTPOSTED><TRNAMT>16.29</TRNAMT><FITID>20260610523533540</FITID><MEMO>RENDIMENTO ATÉ ESTA DATA</MEMO></STMTTRN>
+<STMTTRN><TRNTYPE>PAYMENT</TRNTYPE><DTPOSTED>20260610</DTPOSTED><TRNAMT>-6.23</TRNAMT><FITID>20260610523533540</FITID><MEMO>PREVISÃO DE I.R. PARA RESGATE TOTAL ATÉ ESTA DATA</MEMO></STMTTRN>
+<STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>20260610</DTPOSTED><TRNAMT>3.25</TRNAMT><FITID>20260610524925742</FITID><MEMO>RENDIMENTO ATÉ ESTA DATA</MEMO></STMTTRN>
+<STMTTRN><TRNTYPE>PAYMENT</TRNTYPE><DTPOSTED>20260610</DTPOSTED><TRNAMT>-0.10</TRNAMT><FITID>20260610602906821</FITID><MEMO>PREVISÃO PARA I.O.F. ATÉ ESTA DATA(ISENTO APÓS 30 DIAS DA APLICAÇÃO)</MEMO></STMTTRN>
+<STMTTRN><TRNTYPE>DEBIT</TRNTYPE><DTPOSTED>20260415</DTPOSTED><TRNAMT>-500.00</TRNAMT><FITID>APP1</FITID><MEMO>APLICAÇÃO CDB DI</MEMO></STMTTRN>
+<STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>20260420</DTPOSTED><TRNAMT>200.00</TRNAMT><FITID>RES1</FITID><MEMO>RESGATE CDB DI</MEMO></STMTTRN>
+</BANKTRANLIST>
+<LEDGERBAL><BALAMT>3085.06</BALAMT><DTASOF>20260610</DTASOF></LEDGERBAL>
+</STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`;
+  const inv = await parseOFXEntries(new File([dtvm], "dtvm.ofx"));
+  eq("posição (LEDGERBAL)", inv.saldo, 3085.06);
+  eq("data do snapshot (DTASOF)", inv.dtAsOf, "2026-06-10");
+  eq("período", `${inv.periodStart}|${inv.periodEnd}`, "2026-04-01|2026-06-10");
+  eq("FITID preservado", inv.entries[0].fitid, "20260610523533540");
+
+  const cls = classifyEntries(inv.entries);
+  const totals = snapshotTotals(cls);
+  eq("Σ rendimento acumulado", totals.rendimento, 19.54);     // 16.29 + 3.25
+  eq("Σ IR previsto", totals.irPrevisto, 6.23);
+  eq("Σ IOF previsto", totals.iofPrevisto, 0.1);
+  const flows = flowEntries(cls);
+  eq("fluxos = aplicação + resgate (snapshot fora)", flows.length, 2);
+  eq("aplicação com valor absoluto", flows[0], {
+    date: "2026-04-15", type: "APLICACAO", description: "APLICAÇÃO CDB DI",
+    amount: 500, fitid: "APP1", snapshot: false,
+  });
+
+  // ── Investimentos: dedup de fluxos ────────────────────────────────────────
+  console.log("\ndedupFlows");
+  const d1 = dedupFlows(flows, [
+    { date: new Date("2026-04-15T12:00:00Z"), type: "APLICACAO", amount: 500,
+      description: "APLICAÇÃO CDB DI", fitid: "APP1" },
+  ]);
+  eq("FITID já importado → ignora aplicação, mantém resgate", d1.fresh.length, 1);
+  eq("1 duplicada por FITID", d1.duplicates, 1);
+  const d2 = dedupFlows(flows, [
+    { date: new Date("2026-04-15T12:00:00Z"), type: "APLICACAO", amount: 500,
+      description: "aplicação  cdb di", fitid: null },
+  ]);
+  eq("sem FITID: dedup por chave normalizada", d2.duplicates, 1);
+  const d3 = dedupFlows(flows, []);
+  eq("banco vazio: importa os 2 fluxos", d3.fresh.length, 2);
 
   // ── Resultado ─────────────────────────────────────────────────────────────
   console.log(`\n${"─".repeat(50)}\n${passed} passaram, ${failed} falharam`);

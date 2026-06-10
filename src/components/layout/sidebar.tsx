@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, ArrowUpDown, Upload, BarChart3,
-  Tag, Building2, Shield, FileText, Menu, X, Camera,
+  Tag, Building2, Shield, FileText, Menu, X, Camera, PiggyBank,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard/transactions", label: "Transações",          icon: ArrowUpDown,     roles: ["ADMIN","USER","OPERATOR","READ_ONLY"] },
   { href: "/dashboard/import",       label: "Importar",            icon: Upload,          roles: ["ADMIN","USER","OPERATOR"] },
   { href: "/dashboard/prestacao",    label: "Prestação de Contas", icon: FileText,        roles: ["ADMIN","USER","OPERATOR"] },
+  { href: "/dashboard/investments",  label: "Investimentos",       icon: PiggyBank,       roles: ["ADMIN","USER","OPERATOR","READ_ONLY"] },
   { href: "/dashboard/reports",      label: "Relatórios",          icon: BarChart3,       roles: ["ADMIN","USER","OPERATOR","READ_ONLY"] },
   { href: "/dashboard/categories",   label: "Categorias",          icon: Tag,             roles: ["ADMIN","USER"] },
 ];

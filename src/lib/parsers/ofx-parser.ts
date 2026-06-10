@@ -40,6 +40,78 @@ function parseOfxAmount(raw: string): number | null {
   return isNaN(num) ? null : num;
 }
 
+/** Lançamento OFX bruto, com FITID — usado pelo módulo de investimentos */
+export interface OfxEntry {
+  date: string;        // YYYY-MM-DD
+  amount: number;      // com sinal, como veio no extrato
+  memo: string;
+  fitid: string | null;
+  trntype: string | null;
+}
+
+export interface OfxEntriesResult {
+  entries: OfxEntry[];
+  saldo: number | null;     // LEDGERBAL BALAMT
+  dtAsOf: string | null;    // LEDGERBAL DTASOF (YYYY-MM-DD)
+  periodStart: string | null;
+  periodEnd: string | null;
+  errors: string[];
+}
+
+/**
+ * Extrai os lançamentos OFX preservando FITID/MEMO/sinal — sem interpretar
+ * como receita/despesa. Base do parser de extratos de investimento.
+ */
+export async function parseOFXEntries(file: File): Promise<OfxEntriesResult> {
+  const text = decodeOfx(await file.arrayBuffer());
+  const errors: string[] = [];
+  const entries: OfxEntry[] = [];
+
+  let saldo: number | null = null;
+  let dtAsOf: string | null = null;
+  const ledger = text.match(/<LEDGERBAL>([\s\S]*?)(<\/LEDGERBAL>|<AVAILBAL|<\/BANKSTMTRS|$)/i);
+  if (ledger) {
+    const bal = tag(ledger[1], "BALAMT");
+    if (bal !== null) saldo = parseOfxAmount(bal);
+    const asof = tag(ledger[1], "DTASOF");
+    if (asof !== null) dtAsOf = parseOfxDate(asof);
+  }
+
+  const dtStartM = text.match(/<DTSTART>([^<\r\n]*)/i);
+  const dtEndM = text.match(/<DTEND>([^<\r\n]*)/i);
+  const periodStart = dtStartM ? parseOfxDate(dtStartM[1].trim()) : null;
+  const periodEnd = dtEndM ? parseOfxDate(dtEndM[1].trim()) : null;
+
+  const blocks = text.match(/<STMTTRN>[\s\S]*?(?=<STMTTRN>|<\/BANKTRANLIST>|$)/gi) ?? [];
+  blocks.forEach((block, idx) => {
+    const rawDate = tag(block, "DTPOSTED");
+    const rawAmount = tag(block, "TRNAMT");
+    if (!rawDate || !rawAmount) {
+      errors.push(`Lançamento ${idx + 1}: bloco OFX sem DTPOSTED ou TRNAMT`);
+      return;
+    }
+    const date = parseOfxDate(rawDate);
+    const amount = parseOfxAmount(rawAmount);
+    if (!date || amount === null) {
+      errors.push(`Lançamento ${idx + 1}: data ou valor inválido`);
+      return;
+    }
+    entries.push({
+      date,
+      amount,
+      memo: tag(block, "MEMO") || tag(block, "NAME") || "",
+      fitid: tag(block, "FITID"),
+      trntype: tag(block, "TRNTYPE"),
+    });
+  });
+
+  if (blocks.length === 0) {
+    errors.push("Nenhum bloco <STMTTRN> encontrado no arquivo OFX.");
+  }
+
+  return { entries, saldo, dtAsOf, periodStart, periodEnd, errors };
+}
+
 export async function parseOFX(file: File): Promise<ParseResult> {
   const text = decodeOfx(await file.arrayBuffer());
   const errors: string[] = [];
