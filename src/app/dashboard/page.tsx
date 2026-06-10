@@ -277,7 +277,76 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Donut: proporção receita vs despesa no período */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h3 className="font-semibold text-gray-800 mb-4">
+            Receita vs Despesa
+            <span className="text-xs font-normal text-gray-400 ml-2">(total do período)</span>
+          </h3>
+          {currentMonth.receitas === 0 && currentMonth.despesas === 0 ? (
+            <div className="flex items-center justify-center h-[260px] text-gray-400 text-sm">
+              Sem dados no período
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Receitas", value: currentMonth.receitas, fill: "#22c55e" },
+                        { name: "Despesas", value: currentMonth.despesas, fill: "#ef4444" },
+                      ]}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={58}
+                      outerRadius={85}
+                      paddingAngle={2}
+                      strokeWidth={0}
+                    />
+                    <Tooltip formatter={fmtTooltip} />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Resultado no centro do donut */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-[11px] text-gray-400 leading-none">Resultado</span>
+                  <span
+                    className={`text-base font-bold leading-tight ${
+                      currentMonth.saldo >= 0 ? "text-indigo-600" : "text-red-600"
+                    }`}
+                  >
+                    {formatCurrency(currentMonth.saldo)}
+                  </span>
+                </div>
+              </div>
+              {/* Legenda com valores e percentuais */}
+              <div className="mt-3 space-y-1.5">
+                {(() => {
+                  const total = currentMonth.receitas + currentMonth.despesas;
+                  return [
+                    { label: "Receitas", value: currentMonth.receitas, color: "#22c55e" },
+                    { label: "Despesas", value: currentMonth.despesas, color: "#ef4444" },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2.5 h-2.5 rounded-full" style={{ background: item.color }} />
+                        <span className="text-gray-600">{item.label}</span>
+                        <span className="text-gray-400">
+                          ({total > 0 ? ((item.value / total) * 100).toFixed(1) : "0"}%)
+                        </span>
+                      </div>
+                      <span className="font-medium text-gray-800">{formatCurrency(item.value)}</span>
+                    </div>
+                  ));
+                })()}
+              </div>
+            </>
+          )}
+        </div>
+
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h3 className="font-semibold text-gray-800 mb-4">
             Receitas vs Despesas
