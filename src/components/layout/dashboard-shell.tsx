@@ -11,6 +11,12 @@ import {
   paletteToVars,
 } from "./sidebar-palettes";
 
+interface UserPrefs {
+  theme?: string;
+  palette?: string;
+  sidebarLogo?: string;
+}
+
 interface DashboardShellProps {
   role: string;
   user: {
@@ -19,7 +25,20 @@ interface DashboardShellProps {
     image?: string | null;
     role: string;
   };
+  initialPrefs?: UserPrefs;
+  favicon?: string | null;
   children: React.ReactNode;
+}
+
+/** Persiste preferências do usuário no servidor (fire-and-forget) */
+function savePrefs(partial: Record<string, unknown>) {
+  try {
+    fetch("/api/user/prefs", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(partial),
+    }).catch(() => {});
+  } catch {}
 }
 
 /** Apply palette CSS vars to :root so they are available globally */
@@ -33,7 +52,7 @@ function applyPaletteToRoot(p: SidebarPalette) {
 
 const CRYSTAL_PALETTE = SIDEBAR_PALETTES.find((p) => p.id === "crystal") ?? DEFAULT_PALETTE;
 
-export default function DashboardShell({ role, user, children }: DashboardShellProps) {
+export default function DashboardShell({ role, user, initialPrefs, favicon, children }: DashboardShellProps) {
   // Always start with deterministic defaults — localStorage is read in useEffect
   // to avoid server/client hydration mismatch.
   const [collapsed, setCollapsed] = useState(false);
@@ -42,18 +61,56 @@ export default function DashboardShell({ role, user, children }: DashboardShellP
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user.image ?? null);
   const [sidebarLogo, setSidebarLogo] = useState<string | null>(null);
 
-  // After hydration: load persisted preferences
+  // After hydration: aplica as preferências DO USUÁRIO (vindas do banco).
+  // localStorage é só cache do primeiro paint; o banco é a fonte da verdade.
   useEffect(() => {
-    // collapsed
+    // collapsed (preferência de dispositivo, fica local)
     if (localStorage.getItem("sidebar-collapsed") === "true") setCollapsed(true);
 
-    // palette — CSS vars already applied by inline script in layout.tsx, just sync state
-    const saved = loadPalette();
-    if (saved.id !== DEFAULT_PALETTE.id) setPalette(saved);
+    // Tema do usuário
+    if (initialPrefs?.theme) {
+      document.documentElement.setAttribute("data-theme", initialPrefs.theme);
+      try { localStorage.setItem("theme", initialPrefs.theme); } catch {}
+    }
 
-    // sidebar logo
-    const logo = localStorage.getItem("sidebar-logo");
-    if (logo) setSidebarLogo(logo);
+    // Paleta do usuário
+    if (initialPrefs?.palette) {
+      const found = SIDEBAR_PALETTES.find((p) => p.id === initialPrefs.palette);
+      if (found) {
+        setPalette(found);
+        applyPaletteToRoot(found);
+        try { localStorage.setItem("sidebar-palette", found.id); } catch {}
+      }
+    } else {
+      const saved = loadPalette();
+      if (saved.id !== DEFAULT_PALETTE.id) setPalette(saved);
+    }
+
+    // Logo do menu lateral do usuário
+    if (initialPrefs?.sidebarLogo) {
+      setSidebarLogo(initialPrefs.sidebarLogo);
+      try { localStorage.setItem("sidebar-logo", initialPrefs.sidebarLogo); } catch {}
+    } else {
+      try { localStorage.removeItem("sidebar-logo"); } catch {}
+    }
+
+    // Favicon global (definido pelo administrador)
+    try {
+      let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      if (favicon) {
+        link.href = favicon;
+        localStorage.setItem("app-favicon", favicon);
+      } else {
+        link.href = "/favicon.ico";
+        localStorage.removeItem("app-favicon");
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function toggleCollapsed() {
@@ -68,6 +125,7 @@ export default function DashboardShell({ role, user, children }: DashboardShellP
     setPalette(p);
     applyPaletteToRoot(p);
     try { localStorage.setItem("sidebar-palette", p.id); } catch {}
+    savePrefs({ palette: p.id });
   }
 
   /**
@@ -78,6 +136,8 @@ export default function DashboardShell({ role, user, children }: DashboardShellP
   useEffect(() => {
     function onThemeChange() {
       const theme = document.documentElement.getAttribute("data-theme");
+      // Persiste o tema escolhido pelo usuário
+      if (theme) savePrefs({ theme });
       if (theme === "apple") {
         // Switch to Crystal palette for the light glass sidebar
         const prev = loadPalette();
@@ -118,6 +178,7 @@ export default function DashboardShell({ role, user, children }: DashboardShellP
       if (dataUrl) localStorage.setItem("sidebar-logo", dataUrl);
       else localStorage.removeItem("sidebar-logo");
     } catch {}
+    savePrefs({ sidebarLogo: dataUrl });
   }
 
   return (

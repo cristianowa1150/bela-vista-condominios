@@ -50,11 +50,20 @@ model User {
   image         String?
   role          String          @default("PENDING")
   password      String?
+  // JSON: { theme, palette, sidebarLogo } — personalização individual
+  preferences   String?
   accounts      Account[]
   sessions      Session[]
   transactions  Transaction[]
   imports       ImportHistory[]
   createdAt     DateTime        @default(now())
+}
+
+// Configurações globais do sistema (ex.: favicon definido pelo administrador)
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 model VerificationToken {

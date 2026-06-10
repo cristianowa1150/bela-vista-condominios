@@ -96,7 +96,8 @@ export default function Header({ user, onMobileMenuToggle, onAvatarChange, onPal
       </div>
 
       <div className="flex items-center gap-1">
-        <FaviconPicker />
+        {/* Favicon é identidade do sistema — somente administrador altera */}
+        {user.role === "ADMIN" && <FaviconPicker />}
         <PalettePicker collapsed={false} onPaletteChange={onPaletteChange} _headerMode />
         <ThemeSelector />
 

@@ -50,11 +50,19 @@ model User {
   image         String? @db.LongText
   role          String          @default("PENDING")
   password      String?
+  // JSON: { theme, palette, sidebarLogo } — personalização individual
+  preferences   String? @db.LongText
   accounts      Account[]
   sessions      Session[]
   transactions  Transaction[]
   imports       ImportHistory[]
   createdAt     DateTime        @default(now())
+}
+
+model AppSetting {
+  key       String   @id
+  value     String   @db.LongText
+  updatedAt DateTime @updatedAt
 }
 
 model VerificationToken {

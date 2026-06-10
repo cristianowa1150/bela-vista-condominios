@@ -4,8 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { Globe, Trash2, Upload, X } from "lucide-react";
 import { compressImage } from "@/lib/compress-image";
 
-/** Aplica o favicon na aba do navegador e persiste no localStorage */
-function applyFavicon(dataUrl: string | null) {
+/**
+ * Aplica o favicon na aba e persiste no SERVIDOR (configuração global do
+ * sistema, somente administrador). localStorage é cache do primeiro paint.
+ */
+function applyFaviconLocal(dataUrl: string | null) {
   try {
     let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
     if (!link) {
@@ -23,6 +26,19 @@ function applyFavicon(dataUrl: string | null) {
   } catch {}
 }
 
+async function saveFavicon(dataUrl: string | null): Promise<boolean> {
+  try {
+    const res = await fetch("/api/settings/favicon", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ favicon: dataUrl }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export default function FaviconPicker() {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<string | null>(null);
@@ -31,12 +47,12 @@ export default function FaviconPicker() {
   const fileRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  /* Carrega favicon salvo */
+  /* Carrega o favicon atual do servidor */
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("app-favicon");
-      if (saved) setCurrent(saved);
-    } catch {}
+    fetch("/api/settings/favicon")
+      .then((r) => r.json())
+      .then((d) => { if (d.favicon) setCurrent(d.favicon); })
+      .catch(() => {});
   }, []);
 
   /* Fecha ao clicar fora */
@@ -58,7 +74,12 @@ export default function FaviconPicker() {
     try {
       /* Comprime para 64 × 64 — tamanho ideal para favicon */
       const dataUrl = await compressImage(file, 64, 0.95);
-      applyFavicon(dataUrl);
+      const ok = await saveFavicon(dataUrl);
+      if (!ok) {
+        setError("Erro ao salvar no servidor.");
+        return;
+      }
+      applyFaviconLocal(dataUrl);
       setCurrent(dataUrl);
       setOpen(false);
     } catch {
@@ -69,8 +90,13 @@ export default function FaviconPicker() {
     }
   }
 
-  function handleRemove() {
-    applyFavicon(null);
+  async function handleRemove() {
+    const ok = await saveFavicon(null);
+    if (!ok) {
+      setError("Erro ao remover no servidor.");
+      return;
+    }
+    applyFaviconLocal(null);
     setCurrent(null);
     setOpen(false);
   }
