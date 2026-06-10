@@ -25,6 +25,10 @@ function parseMysqlUrl(url: string) {
       user:     decodeURIComponent(u.username),
       password: decodeURIComponent(u.password),
       database: u.pathname.replace(/^\//, ""),
+      // MySQL 8 usa caching_sha2_password: em conexão local sem TLS o
+      // conector precisa poder buscar a chave pública RSA do servidor
+      allowPublicKeyRetrieval: true,
+      connectionLimit: 5,
     };
   } catch {
     throw new Error(`[prisma] DATABASE_URL inválida: ${url}`);
