@@ -1,6 +1,22 @@
 import { prisma } from "@/lib/prisma";
-import { authorize, ROLES_READ, round2 } from "@/lib/authz";
+import { authorize, ROLES_READ, ROLES_ADMIN, round2 } from "@/lib/authz";
 import { computePosition, matchContaInvestmentFlow } from "@/lib/investments";
+
+/** Limpa todas as importações de investimentos (extratos e movimentações). */
+export async function DELETE() {
+  const { error } = await authorize(ROLES_ADMIN);
+  if (error) return error;
+
+  const [movements, statements] = await prisma.$transaction([
+    prisma.investmentMovement.deleteMany({}),
+    prisma.investmentStatement.deleteMany({}),
+  ]);
+
+  return Response.json({
+    success: true,
+    deleted: { statements: statements.count, movements: movements.count },
+  });
+}
 
 /**
  * Dados consolidados de investimentos.

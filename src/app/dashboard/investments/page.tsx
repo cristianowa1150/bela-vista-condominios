@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   PiggyBank, Upload, TrendingUp, Landmark, ReceiptText, Wallet,
-  CheckCircle, AlertCircle, X, FileText, ArrowDownCircle, ArrowUpCircle,
+  CheckCircle, AlertCircle, X, FileText, ArrowDownCircle, ArrowUpCircle, Trash2,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
@@ -69,6 +69,8 @@ export default function InvestmentsPage() {
   const [importing, setImporting] = useState(false);
   const [success, setSuccess] = useState<string>("");
   const [error, setError] = useState("");
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const loadData = useCallback(() => {
     fetch("/api/investments")
@@ -122,6 +124,24 @@ export default function InvestmentsPage() {
     setImporting(false);
   }
 
+  async function handleClear() {
+    setClearing(true);
+    setError("");
+    const res = await fetch("/api/investments", { method: "DELETE" });
+    const d = await res.json();
+    if (res.ok) {
+      setSuccess(
+        `Importações de investimento removidas: ${d.deleted.statements} extratos e ${d.deleted.movements} registros.`
+      );
+      setClearOpen(false);
+      loadData();
+    } else {
+      setError(d.error ?? "Erro ao limpar importações");
+      setClearOpen(false);
+    }
+    setClearing(false);
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -160,11 +180,55 @@ export default function InvestmentsPage() {
           </label>
           <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium hover:bg-sky-700 transition-colors">
             <FileText className="w-4 h-4" />
-            Posição de Investimentos (PDF)
+            Importar Posição de Investimentos (PDF)
             <input type="file" accept=".pdf" className="hidden" onChange={handleFile} />
           </label>
+          <button
+            onClick={() => setClearOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Limpar Importações
+          </button>
         </div>
       </div>
+
+      {/* Modal: limpar importações */}
+      {clearOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Limpar Importações</h3>
+                <p className="text-xs text-gray-500">Esta ação não pode ser desfeita.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-5">
+              Remove <strong>todos</strong> os extratos de investimento importados (posições,
+              movimentações e fotografias). As transações da conta corrente não são afetadas.
+              Use para reimportar do zero.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setClearOpen(false)}
+                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleClear}
+                disabled={clearing}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-60"
+              >
+                {clearing ? "Limpando…" : "Limpar Tudo"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mensagens */}
       {success && (
