@@ -175,8 +175,8 @@ export default function InvestmentsPage() {
         <div className="flex gap-2 flex-wrap">
           <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
             <Upload className="w-4 h-4" />
-            Extrato Importado (OFX)
-            <input type="file" accept=".ofx,.txt" className="hidden" onChange={handleFile} />
+            Importar Extrato (OFX/PDF)
+            <input type="file" accept=".ofx,.pdf,.txt" className="hidden" onChange={handleFile} />
           </label>
           <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-medium hover:bg-sky-700 transition-colors">
             <FileText className="w-4 h-4" />
