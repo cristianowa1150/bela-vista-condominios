@@ -7,6 +7,29 @@ Versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [2.1.3] — 2026-06-10
+
+### Corrigido
+- **Precisão financeira na tela de Relatórios** — os totais (receitas, despesas,
+  saldo, ticket médio) eram somados sem arredondamento, podendo exibir resíduo
+  de ponto flutuante; agora toda a matemática passa por funções arredondadas
+
+### Alterado (interno, sem mudança de comportamento)
+- Lógica financeira centralizada em `src/lib/finance.ts` (somas, resultado,
+  ticket médio, percentual, agrupamentos, intervalo e navegação de meses)
+- Decisão do login local extraída para `src/lib/auth-logic.ts` e matriz de
+  perfis para `src/lib/roles.ts` — ambas puras e testáveis
+- `monthRange` (intervalo do mês que define quais transações entram na soma)
+  unificado nas rotas de statements e import
+
+### Testes
+- Suíte de unidade ampliada de 39 → **109 casos**: segurança do login local
+  (credenciais, bcrypt, proteção HTTP 431), matriz de autorização por perfil,
+  precisão financeira (divisão por zero, viradas de ano, bissexto), CSV e
+  formatação
+
+---
+
 ## [2.1.2] — 2026-06-10
 
 ### Corrigido
