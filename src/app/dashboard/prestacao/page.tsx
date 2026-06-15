@@ -6,6 +6,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, CheckCircle, Download,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { currentMonth, prevMonth, nextMonth } from "@/lib/finance";
 
 interface Statement {
   id: string;
@@ -37,23 +38,6 @@ interface MonthData {
 function monthLabel(month: string) {
   const [y, m] = month.split("-").map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-}
-
-function currentMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function prevMonth(m: string) {
-  const [y, mo] = m.split("-").map(Number);
-  const d = new Date(y, mo - 2, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function nextMonth(m: string) {
-  const [y, mo] = m.split("-").map(Number);
-  const d = new Date(y, mo, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export default function PrestacaoPage() {

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authorize, ROLES_READ, ROLES_IMPORT, round2 } from "@/lib/authz";
+import { monthRange } from "@/lib/finance";
 
 export async function GET(
   _req: NextRequest,
@@ -10,9 +11,7 @@ export async function GET(
   if (error) return error;
 
   const { month } = await ctx.params;
-  const [year, m] = month.split("-").map(Number);
-  const startDate = new Date(year, m - 1, 1);
-  const endDate = new Date(year, m, 0, 23, 59, 59);
+  const { startDate, endDate } = monthRange(month);
 
   const [statement, transactions] = await Promise.all([
     prisma.accountStatement.findUnique({ where: { month } }),

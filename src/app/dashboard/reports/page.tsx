@@ -8,6 +8,10 @@ import {
 } from "recharts";
 import { Download, FileText, TrendingUp, TrendingDown, DollarSign, ChevronLeft, ChevronRight } from "lucide-react";
 import * as XLSX from "xlsx";
+import {
+  sumByType, computeResultado, ticketMedio,
+  groupByCategory, groupByDay as groupByDayISO,
+} from "@/lib/finance";
 
 interface Transaction {
   id: string;
@@ -99,15 +103,21 @@ export default function ReportsPage() {
 
   const receitas = transactions.filter((t) => t.type === "RECEITA");
   const despesas = transactions.filter((t) => t.type === "DESPESA");
-  const totalReceitas = receitas.reduce((s, t) => s + t.amount, 0);
-  const totalDespesas = despesas.reduce((s, t) => s + t.amount, 0);
-  const saldo = totalReceitas - totalDespesas;
-  const ticketMedioReceita = receitas.length ? totalReceitas / receitas.length : 0;
-  const ticketMedioDespesa = despesas.length ? totalDespesas / despesas.length : 0;
+  // Somas e resultado sempre arredondados a 2 casas (precisão de prestação de contas)
+  const totalReceitas = sumByType(transactions, "RECEITA");
+  const totalDespesas = sumByType(transactions, "DESPESA");
+  const saldo = computeResultado(totalReceitas, totalDespesas);
+  const ticketMedioReceita = ticketMedio(totalReceitas, receitas.length);
+  const ticketMedioDespesa = ticketMedio(totalDespesas, despesas.length);
 
   const receitaByCategory = groupByCategory(receitas);
   const despesaByCategory = groupByCategory(despesas);
-  const byDay = groupByDay(transactions);
+  // groupByDayISO devolve a chave ISO ordenável; aqui adicionamos o rótulo pt-BR para o gráfico
+  const byDay = groupByDayISO(transactions).map((d) => ({
+    date: new Date(d.day + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+    receitas: d.receitas,
+    despesas: d.despesas,
+  }));
 
   // Paginação da tabela em tela (a impressão sempre mostra 100% dos registros)
   const totalPages = Math.max(1, Math.ceil(transactions.length / pageSize));
@@ -515,27 +525,3 @@ export default function ReportsPage() {
   );
 }
 
-function groupByCategory(txs: Transaction[]) {
-  const map: Record<string, { name: string; color: string; value: number }> = {};
-  txs.forEach((t) => {
-    const key = t.category?.name ?? "Sem categoria";
-    if (!map[key]) map[key] = { name: key, color: t.category?.color ?? "#94a3b8", value: 0 };
-    map[key].value += t.amount;
-  });
-  return Object.values(map).sort((a, b) => b.value - a.value);
-}
-
-function groupByDay(txs: Transaction[]) {
-  const map: Record<string, { date: string; receitas: number; despesas: number }> = {};
-  txs.forEach((t) => {
-    const date = t.date.split("T")[0];
-    const label = new Date(date + "T12:00:00").toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-    });
-    if (!map[date]) map[date] = { date: label, receitas: 0, despesas: 0 };
-    if (t.type === "RECEITA") map[date].receitas += t.amount;
-    else map[date].despesas += t.amount;
-  });
-  return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
-}

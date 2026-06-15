@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authorize, ROLES_READ, ROLES_IMPORT, round2 } from "@/lib/authz";
+import { monthRange } from "@/lib/finance";
 
 export async function GET() {
   const { error } = await authorize(ROLES_READ);
@@ -24,9 +25,7 @@ export async function POST(request: NextRequest) {
 
   if (!month) return Response.json({ error: "Mês obrigatório" }, { status: 400 });
 
-  const [year, m] = month.split("-").map(Number);
-  const startDate = new Date(year, m - 1, 1);
-  const endDate = new Date(year, m, 0, 23, 59, 59);
+  const { startDate, endDate } = monthRange(month);
 
   const [rec, desp] = await Promise.all([
     prisma.transaction.aggregate({

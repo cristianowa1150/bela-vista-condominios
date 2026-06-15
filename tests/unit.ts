@@ -2,14 +2,30 @@
  * Testes de unidade da lógica crítica do sistema.
  * Execução: npm test  (npx tsx tests/unit.ts)
  *
- * Cobre: matemática monetária, parsing de valores/datas, parsers de extrato
- * (OFX, texto livre/PDF/TXT) e deduplicação com multiplicidade.
+ * Cobre, em todas as telas:
+ *  - Segurança do login local (credenciais) e autorização por perfil
+ *  - Precisão matemática financeira (somas, resultado, ticket médio, %, grupos)
+ *  - Parsing de valores/datas e parsers de extrato (CSV/OFX/PDF/TXT)
+ *  - Deduplicação e tratamento de erros (parsers não lançam — retornam erros)
  */
-import { parseAmount } from "../src/lib/parsers/csv-parser";
+import bcrypt from "bcryptjs";
+import { parseAmount, parseCSV } from "../src/lib/parsers/csv-parser";
 import { parseOFX } from "../src/lib/parsers/ofx-parser";
 import { parseStatementText } from "../src/lib/parsers/pdf-parser";
 import { splitWithExisting, txKey } from "../src/lib/import-dedup";
 import { round2 } from "../src/lib/money";
+import {
+  sumAmounts, sumByType, computeResultado, ticketMedio, percentual,
+  groupByCategory, groupByDay, currentMonth, prevMonth, nextMonth, monthRange,
+} from "../src/lib/finance";
+import {
+  normalizeLoginEmail, hasCredentials, isCredentialEligible, buildSessionUser,
+  type CredentialUser,
+} from "../src/lib/auth-logic";
+import {
+  ROLES_ADMIN, ROLES_WRITE, ROLES_IMPORT, ROLES_READ, isAllowed,
+} from "../src/lib/roles";
+import { formatCurrency, formatDateInput } from "../src/lib/utils";
 
 let passed = 0;
 let failed = 0;
@@ -25,6 +41,8 @@ function eq(name: string, actual: unknown, expected: unknown) {
     console.error(`  ✗ ${name}\n      esperado: ${e}\n      obtido:   ${a}`);
   }
 }
+
+function ok(name: string, cond: boolean) { eq(name, cond, true); }
 
 async function main() {
   // ── round2: precisão monetária ────────────────────────────────────────────
@@ -142,6 +160,150 @@ async function main() {
   eq("chave arredonda float (120.50000001 ≈ 120.5)",
     txKey(new Date("2026-06-05T12:00:00Z"), "DESPESA", 120.50000001, "X"),
     txKey(new Date("2026-06-05T12:00:00Z"), "DESPESA", 120.5, "X"));
+
+  // ════════════════════════════════════════════════════════════════════════
+  // TELA DE LOGIN — segurança das credenciais locais (não-OAuth)
+  // ════════════════════════════════════════════════════════════════════════
+  console.log("\nLogin local — normalização e elegibilidade");
+  eq("e-mail: trim + minúsculas", normalizeLoginEmail("  Joao@Exemplo.COM "), "joao@exemplo.com");
+  eq("e-mail vazio → null", normalizeLoginEmail("   "), null);
+  eq("e-mail não-string → null", normalizeLoginEmail(undefined), null);
+  eq("e-mail null → null", normalizeLoginEmail(null), null);
+  ok("credenciais completas", hasCredentials("a@b.com", "senha"));
+  ok("sem senha → não tem credenciais", !hasCredentials("a@b.com", ""));
+  ok("sem e-mail → não tem credenciais", !hasCredentials("", "senha"));
+  ok("senha não-string → não tem credenciais", !hasCredentials("a@b.com", undefined));
+
+  const localUser: CredentialUser = {
+    id: "u1", name: "Síndico", email: "sindico@bv.com", role: "ADMIN",
+    password: "$2a$12$hashfake",
+  };
+  const oauthUser: CredentialUser = {
+    id: "u2", name: "Condômino", email: "c@bv.com", role: "USER", password: null,
+  };
+  ok("usuário com senha é elegível", isCredentialEligible(localUser));
+  ok("usuário OAuth (sem senha) NÃO é elegível", !isCredentialEligible(oauthUser));
+  ok("usuário inexistente NÃO é elegível", !isCredentialEligible(null));
+  ok("senha vazia NÃO é elegível", !isCredentialEligible({ ...localUser, password: "" }));
+
+  console.log("\nLogin local — usuário de sessão (proteção HTTP 431)");
+  const su = buildSessionUser(localUser);
+  eq("image SEMPRE null (não vai pro JWT)", su.image, null);
+  eq("preserva id/role", [su.id, su.role], ["u1", "ADMIN"]);
+  ok("nunca expõe o hash de senha na sessão", !("password" in su));
+
+  console.log("\nLogin local — verificação real de senha (bcrypt)");
+  const hash = bcrypt.hashSync("Bela@Vista2026", 12);
+  ok("senha correta confere", bcrypt.compareSync("Bela@Vista2026", hash));
+  ok("senha errada não confere", !bcrypt.compareSync("senhaerrada", hash));
+  ok("senha vazia não confere", !bcrypt.compareSync("", hash));
+  ok("hash não é texto plano", hash !== "Bela@Vista2026" && hash.startsWith("$2"));
+
+  // ════════════════════════════════════════════════════════════════════════
+  // AUTORIZAÇÃO POR PERFIL — matriz de acesso (defesa em profundidade)
+  // ════════════════════════════════════════════════════════════════════════
+  console.log("\nAutorização por perfil");
+  ok("ADMIN faz tudo (admin)", isAllowed("ADMIN", ROLES_ADMIN));
+  ok("USER NÃO acessa admin", !isAllowed("USER", ROLES_ADMIN));
+  ok("OPERATOR NÃO acessa admin", !isAllowed("OPERATOR", ROLES_ADMIN));
+  ok("ADMIN e USER escrevem", isAllowed("ADMIN", ROLES_WRITE) && isAllowed("USER", ROLES_WRITE));
+  ok("OPERATOR NÃO escreve (sem edição manual)", !isAllowed("OPERATOR", ROLES_WRITE));
+  ok("READ_ONLY NÃO escreve", !isAllowed("READ_ONLY", ROLES_WRITE));
+  ok("OPERATOR importa/presta contas", isAllowed("OPERATOR", ROLES_IMPORT));
+  ok("READ_ONLY NÃO importa", !isAllowed("READ_ONLY", ROLES_IMPORT));
+  ok("READ_ONLY lê", isAllowed("READ_ONLY", ROLES_READ));
+  ok("PENDING não acessa NADA", !isAllowed("PENDING", ROLES_READ) && !isAllowed("PENDING", ROLES_WRITE));
+  ok("REJECTED não acessa NADA", !isAllowed("REJECTED", ROLES_READ) && !isAllowed("REJECTED", ROLES_ADMIN));
+  ok("perfil indefinido não acessa", !isAllowed(undefined, ROLES_READ) && !isAllowed(null, ROLES_READ));
+  ok("perfil forjado/desconhecido não acessa", !isAllowed("SUPERADMIN", ROLES_ADMIN));
+
+  // ════════════════════════════════════════════════════════════════════════
+  // PRECISÃO FINANCEIRA — somas, resultado, ticket médio, % e agrupamentos
+  // ════════════════════════════════════════════════════════════════════════
+  console.log("\nFinanças — somas e resultado (sem resíduo de float)");
+  eq("soma 0.1+0.2+0.3 = 0.6 exato", sumAmounts([{ amount: 0.1 }, { amount: 0.2 }, { amount: 0.3 }]), 0.6);
+  eq("soma de muitas taxas iguais", sumAmounts(Array(7).fill({ amount: 450.1 })), 3150.7);
+  eq("soma por tipo RECEITA", sumByType(
+    [{ amount: 100, type: "RECEITA" }, { amount: 50, type: "DESPESA" }, { amount: 25.5, type: "RECEITA" }],
+    "RECEITA"), 125.5);
+  eq("resultado = receitas − despesas exato", computeResultado(1000.1, 999.9), 0.2);
+  eq("resultado negativo (déficit)", computeResultado(500, 800.45), -300.45);
+  eq("resultado com centavos imprecisos", computeResultado(0.3, 0.1), 0.2);
+
+  console.log("\nFinanças — ticket médio e percentual (divisão por zero protegida)");
+  eq("ticket médio normal", ticketMedio(1000, 4), 250);
+  eq("ticket médio arredonda", ticketMedio(100, 3), 33.33);
+  eq("ticket médio sem itens = 0 (não NaN)", ticketMedio(0, 0), 0);
+  eq("percentual normal", percentual(25, 100), 25);
+  eq("percentual arredonda", percentual(1, 3), 33.33);
+  eq("percentual de total 0 = 0 (não NaN/Infinity)", percentual(50, 0), 0);
+
+  console.log("\nFinanças — agrupamento por categoria e por dia");
+  const txs = [
+    { amount: 100, type: "DESPESA", category: { name: "Água", color: "#00f" }, date: "2026-06-01" },
+    { amount: 50.5, type: "DESPESA", category: { name: "Água", color: "#00f" }, date: "2026-06-01" },
+    { amount: 200, type: "DESPESA", category: { name: "Energia", color: "#ff0" }, date: "2026-06-02" },
+    { amount: 30, type: "DESPESA", category: null, date: "2026-06-02" },
+  ];
+  const cat = groupByCategory(txs);
+  eq("categoria ordenada por valor (Energia 1º)", cat[0].name, "Energia");
+  eq("soma da categoria Água (100+50.5)", cat.find((c) => c.name === "Água")?.value, 150.5);
+  eq("categoria nula vira 'Sem categoria'", cat.some((c) => c.name === "Sem categoria"), true);
+  const receitasDespesas = [
+    { amount: 500, type: "RECEITA", date: "2026-06-01T10:00:00" },
+    { amount: 100, type: "DESPESA", date: "2026-06-01T15:00:00" },
+    { amount: 80.25, type: "DESPESA", date: "2026-06-02" },
+  ];
+  const days = groupByDay(receitasDespesas);
+  eq("2 dias agrupados", days.length, 2);
+  eq("dia 01: receitas 500, despesas 100", [days[0].receitas, days[0].despesas], [500, 100]);
+  eq("dia 02: despesas 80.25", days[1].despesas, 80.25);
+  eq("agrupamento por dia ordenado por data ISO", days[0].day < days[1].day, true);
+
+  // ════════════════════════════════════════════════════════════════════════
+  // NAVEGAÇÃO DE MESES — viradas de ano (prestação de contas mensal)
+  // ════════════════════════════════════════════════════════════════════════
+  console.log("\nNavegação de meses e intervalos");
+  eq("mês anterior dentro do ano", prevMonth("2026-06"), "2026-05");
+  eq("mês anterior na virada (jan → dez ano anterior)", prevMonth("2026-01"), "2025-12");
+  eq("próximo mês dentro do ano", nextMonth("2026-06"), "2026-07");
+  eq("próximo mês na virada (dez → jan ano seguinte)", nextMonth("2026-12"), "2027-01");
+  eq("mês corrente formato YYYY-MM", currentMonth(new Date(2026, 2, 15)), "2026-03");
+  const range = monthRange("2026-02");
+  eq("intervalo fev/2026: início dia 1", range.startDate.getDate(), 1);
+  eq("intervalo fev/2026: fim dia 28 (ano não bissexto)", range.endDate.getDate(), 28);
+  const rangeLeap = monthRange("2024-02");
+  eq("intervalo fev/2024: fim dia 29 (bissexto)", rangeLeap.endDate.getDate(), 29);
+  eq("intervalo dez/2026: fim dia 31", monthRange("2026-12").endDate.getDate(), 31);
+
+  // ════════════════════════════════════════════════════════════════════════
+  // CSV — detecção de colunas, parsing e tratamento de erros
+  // ════════════════════════════════════════════════════════════════════════
+  console.log("\nparseCSV (detecção de colunas e erros)");
+  const csvOk = "Data;Histórico;Valor;Saldo\n01/06/2026;TAXA COND;450,00;1000,00\n05/06/2026;ENERGIA;-120,50;879,50\n";
+  const rc = await parseCSV(new File([csvOk], "extrato.csv"));
+  eq("CSV: 2 lançamentos", rc.data.length, 2);
+  eq("CSV: positivo → RECEITA", rc.data[0].type, "RECEITA");
+  eq("CSV: negativo → DESPESA", rc.data[1].type, "DESPESA");
+  eq("CSV: valor absoluto", rc.data[1].amount, 120.5);
+  eq("CSV: coluna Saldo NÃO é usada como valor", rc.data[0].amount, 450);
+  const csvNoCols = "Coluna1;Coluna2\nabc;def\n";
+  const rcBad = await parseCSV(new File([csvNoCols], "ruim.csv"));
+  ok("CSV sem colunas reconhecidas: 0 dados + erro (não lança)", rcBad.data.length === 0 && rcBad.errors.length > 0);
+  const csvBadDate = "Data;Histórico;Valor\nxx/yy/zzzz;TESTE;100,00\n";
+  const rcDate = await parseCSV(new File([csvBadDate], "data.csv"));
+  ok("CSV data inválida: gera erro, não lança", rcDate.errors.length > 0);
+
+  // ════════════════════════════════════════════════════════════════════════
+  // FORMATAÇÃO — moeda e data (saída exibida na prestação de contas)
+  // ════════════════════════════════════════════════════════════════════════
+  console.log("\nFormatação de moeda e data");
+  ok("formatCurrency tem R$ e o valor", (() => {
+    const s = formatCurrency(1234.5);
+    return s.includes("R$") && s.includes("1.234,5");
+  })());
+  ok("formatCurrency negativo", formatCurrency(-50).includes("50"));
+  eq("formatDateInput → YYYY-MM-DD", formatDateInput("2026-06-10T15:30:00.000Z"), "2026-06-10");
 
   // ── Resultado ─────────────────────────────────────────────────────────────
   console.log(`\n${"─".repeat(50)}\n${passed} passaram, ${failed} falharam`);

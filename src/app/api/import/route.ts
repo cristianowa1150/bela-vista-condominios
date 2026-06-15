@@ -7,14 +7,7 @@ import { parseXLSX } from "@/lib/parsers/xlsx-parser";
 import { parseOFX } from "@/lib/parsers/ofx-parser";
 import { parsePDF } from "@/lib/parsers/pdf-parser";
 import { parseTXT } from "@/lib/parsers/txt-parser";
-
-function monthRange(month: string) {
-  const [year, m] = month.split("-").map(Number);
-  return {
-    startDate: new Date(year, m - 1, 1),
-    endDate: new Date(year, m, 0, 23, 59, 59),
-  };
-}
+import { monthRange } from "@/lib/finance";
 
 import { splitWithExisting, type DedupRow } from "@/lib/import-dedup";
 

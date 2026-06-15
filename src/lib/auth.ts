@@ -5,6 +5,12 @@ import GitHub from "next-auth/providers/github";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
+import {
+  normalizeLoginEmail,
+  hasCredentials,
+  isCredentialEligible,
+  buildSessionUser,
+} from "./auth-logic";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -19,10 +25,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: "Senha",  type: "password" },
       },
       async authorize(credentials) {
-        const email    = (credentials?.email    as string | undefined)?.trim().toLowerCase();
-        const password =  credentials?.password as string | undefined;
-
-        if (!email || !password) return null;
+        if (!hasCredentials(credentials?.email, credentials?.password)) return null;
+        const email = normalizeLoginEmail(credentials?.email)!;
+        const password = credentials!.password as string;
 
         try {
           // Use Prisma — works with any database (MySQL, PostgreSQL, SQLite)
@@ -31,21 +36,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             select: { id: true, name: true, email: true, role: true, password: true },
           });
 
-          if (!user?.password) return null;
+          // Contas exclusivamente OAuth (sem senha) não logam por credenciais
+          if (!isCredentialEligible(user)) return null;
 
           const valid = await bcrypt.compare(password, user.password);
           if (!valid) return null;
 
-          // Do NOT include image in JWT — base64 avatars can be 50KB+
-          // which makes the cookie exceed the 8KB HTTP header limit (HTTP 431).
-          // Image is fetched directly from DB in the dashboard layout server component.
-          return {
-            id:    user.id,
-            name:  user.name,
-            email: user.email,
-            image: null,
-            role:  user.role,
-          };
+          // image: null sempre — base64 no JWT estoura o header HTTP (431).
+          // A imagem é buscada do banco no server component do dashboard.
+          return buildSessionUser(user);
         } catch (err) {
           console.error("[auth] authorize error:", err);
           return null;
