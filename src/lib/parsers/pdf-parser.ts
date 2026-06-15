@@ -21,23 +21,16 @@ function isBalanceLine(lower: string): boolean {
   return BALANCE_WORDS.some((w) => lower.includes(w));
 }
 
-/** Extrai o texto bruto de um PDF (lança erro para PDFs digitalizados/imagem) */
-export async function extractPdfText(file: File): Promise<string> {
+export async function parsePDF(file: File): Promise<ParseResult> {
   const { PDFParse } = await import("pdf-parse");
   const buffer = Buffer.from(await file.arrayBuffer());
-  const parser = new PDFParse({ data: new Uint8Array(buffer) });
-  try {
-    const result = await parser.getText();
-    return result.text;
-  } finally {
-    await parser.destroy();
-  }
-}
 
-export async function parsePDF(file: File): Promise<ParseResult> {
   let text: string;
   try {
-    text = await extractPdfText(file);
+    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    const result = await parser.getText();
+    text = result.text;
+    await parser.destroy();
   } catch (err) {
     return {
       data: [],

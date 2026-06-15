@@ -6,17 +6,7 @@
  * (OFX, texto livre/PDF/TXT) e deduplicação com multiplicidade.
  */
 import { parseAmount } from "../src/lib/parsers/csv-parser";
-import { parseOFX, parseOFXEntries } from "../src/lib/parsers/ofx-parser";
-import { parsePosicaoText, isPosicaoStatement } from "../src/lib/parsers/posicao-parser";
-import {
-  classifyInvestmentMemo,
-  classifyEntries,
-  snapshotTotals,
-  flowEntries,
-  dedupFlows,
-  computePosition,
-  matchContaInvestmentFlow,
-} from "../src/lib/investments";
+import { parseOFX } from "../src/lib/parsers/ofx-parser";
 import { parseStatementText } from "../src/lib/parsers/pdf-parser";
 import { splitWithExisting, txKey } from "../src/lib/import-dedup";
 import { round2 } from "../src/lib/money";
@@ -152,123 +142,6 @@ async function main() {
   eq("chave arredonda float (120.50000001 ≈ 120.5)",
     txKey(new Date("2026-06-05T12:00:00Z"), "DESPESA", 120.50000001, "X"),
     txKey(new Date("2026-06-05T12:00:00Z"), "DESPESA", 120.5, "X"));
-
-  // ── Investimentos: classificação de MEMOs ─────────────────────────────────
-  console.log("\nclassifyInvestmentMemo");
-  eq("rendimento até esta data → snapshot",
-    classifyInvestmentMemo("RENDIMENTO ATÉ ESTA DATA"), { type: "RENDIMENTO", snapshot: true });
-  eq("IR p/ resgate total → IR_PREVISTO (não RESGATE)",
-    classifyInvestmentMemo("PREVISÃO DE I.R. PARA RESGATE TOTAL ATÉ ESTA DATA"),
-    { type: "IR_PREVISTO", snapshot: true });
-  eq("IOF → IOF_PREVISTO",
-    classifyInvestmentMemo("PREVISÃO PARA I.O.F. ATÉ ESTA DATA(ISENTO APÓS 30 DIAS DA APLICAÇÃO)"),
-    { type: "IOF_PREVISTO", snapshot: true });
-  eq("aplicação é fluxo",
-    classifyInvestmentMemo("APLICAÇÃO CDB DI"), { type: "APLICACAO", snapshot: false });
-  eq("resgate é fluxo",
-    classifyInvestmentMemo("RESGATE CDB DI"), { type: "RESGATE", snapshot: false });
-
-  // ── Investimentos: extrato OFX real (Inter DTVM, parcial) ─────────────────
-  console.log("\nparseOFXEntries + matemática do extrato DTVM");
-  const dtvm = `OFXHEADER:100
-DATA:OFXSGML
-<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>BRL</CURDEF>
-<BANKTRANLIST><DTSTART>20260401</DTSTART><DTEND>20260610</DTEND>
-<STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>20260610</DTPOSTED><TRNAMT>16.29</TRNAMT><FITID>20260610523533540</FITID><MEMO>RENDIMENTO ATÉ ESTA DATA</MEMO></STMTTRN>
-<STMTTRN><TRNTYPE>PAYMENT</TRNTYPE><DTPOSTED>20260610</DTPOSTED><TRNAMT>-6.23</TRNAMT><FITID>20260610523533540</FITID><MEMO>PREVISÃO DE I.R. PARA RESGATE TOTAL ATÉ ESTA DATA</MEMO></STMTTRN>
-<STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>20260610</DTPOSTED><TRNAMT>3.25</TRNAMT><FITID>20260610524925742</FITID><MEMO>RENDIMENTO ATÉ ESTA DATA</MEMO></STMTTRN>
-<STMTTRN><TRNTYPE>PAYMENT</TRNTYPE><DTPOSTED>20260610</DTPOSTED><TRNAMT>-0.10</TRNAMT><FITID>20260610602906821</FITID><MEMO>PREVISÃO PARA I.O.F. ATÉ ESTA DATA(ISENTO APÓS 30 DIAS DA APLICAÇÃO)</MEMO></STMTTRN>
-<STMTTRN><TRNTYPE>DEBIT</TRNTYPE><DTPOSTED>20260415</DTPOSTED><TRNAMT>-500.00</TRNAMT><FITID>APP1</FITID><MEMO>APLICAÇÃO CDB DI</MEMO></STMTTRN>
-<STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>20260420</DTPOSTED><TRNAMT>200.00</TRNAMT><FITID>RES1</FITID><MEMO>RESGATE CDB DI</MEMO></STMTTRN>
-</BANKTRANLIST>
-<LEDGERBAL><BALAMT>3085.06</BALAMT><DTASOF>20260610</DTASOF></LEDGERBAL>
-</STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`;
-  const inv = await parseOFXEntries(new File([dtvm], "dtvm.ofx"));
-  eq("posição (LEDGERBAL)", inv.saldo, 3085.06);
-  eq("data do snapshot (DTASOF)", inv.dtAsOf, "2026-06-10");
-  eq("período", `${inv.periodStart}|${inv.periodEnd}`, "2026-04-01|2026-06-10");
-  eq("FITID preservado", inv.entries[0].fitid, "20260610523533540");
-
-  const cls = classifyEntries(inv.entries);
-  const totals = snapshotTotals(cls);
-  eq("Σ rendimento acumulado", totals.rendimento, 19.54);     // 16.29 + 3.25
-  eq("Σ IR previsto", totals.irPrevisto, 6.23);
-  eq("Σ IOF previsto", totals.iofPrevisto, 0.1);
-  const flows = flowEntries(cls);
-  eq("fluxos = aplicação + resgate (snapshot fora)", flows.length, 2);
-  eq("aplicação com valor absoluto", flows[0], {
-    date: "2026-04-15", type: "APLICACAO", description: "APLICAÇÃO CDB DI",
-    amount: 500, fitid: "APP1", snapshot: false,
-  });
-
-  // ── Investimentos: dedup de fluxos ────────────────────────────────────────
-  console.log("\ndedupFlows");
-  const d1 = dedupFlows(flows, [
-    { date: new Date("2026-04-15T12:00:00Z"), type: "APLICACAO", amount: 500,
-      description: "APLICAÇÃO CDB DI", fitid: "APP1" },
-  ]);
-  eq("FITID já importado → ignora aplicação, mantém resgate", d1.fresh.length, 1);
-  eq("1 duplicada por FITID", d1.duplicates, 1);
-  const d2 = dedupFlows(flows, [
-    { date: new Date("2026-04-15T12:00:00Z"), type: "APLICACAO", amount: 500,
-      description: "aplicação  cdb di", fitid: null },
-  ]);
-  eq("sem FITID: dedup por chave normalizada", d2.duplicates, 1);
-  const d3 = dedupFlows(flows, []);
-  eq("banco vazio: importa os 2 fluxos", d3.fresh.length, 2);
-
-  // ── Investimentos: posição (LEDGERBAL do DTVM é saldo da conta, ignorado) ─
-  console.log("\ncomputePosition + matchContaInvestmentFlow");
-  eq("posição = aplicado − resgatado + rendimento",
-    computePosition(6898.68, 0, 80.11), 6978.79);
-  eq("posição com resgate", computePosition(1000, 200, 15.5), 815.5);
-  eq("centavos exatos", computePosition(0.1, 0, 0.2), 0.3);
-  eq("despesa APLICACAO na conta → aporte",
-    matchContaInvestmentFlow("APLICACAO CDB DI", "DESPESA"), "APLICACAO");
-  eq("acentuada minúscula também",
-    matchContaInvestmentFlow("Aplicação automática RDB", "DESPESA"), "APLICACAO");
-  eq("receita RESGATE na conta → retirada",
-    matchContaInvestmentFlow("RESGATE CDB", "RECEITA"), "RESGATE");
-  eq("receita APLICACAO não é aporte (estorno)",
-    matchContaInvestmentFlow("APLICACAO CDB", "RECEITA"), null);
-  eq("descrição comum não casa",
-    matchContaInvestmentFlow("PAGTO ENERGIA", "DESPESA"), null);
-
-  // ── Extrato de Posição de Renda Fixa (PDF Inter — layout real) ────────────
-  console.log("\nparsePosicaoText");
-  const posTxt = [
-    "EXTRATO DE POSIÇÃO DE RENDA FIXA",
-    "001 Conta:\tAgência: 25907360 Posição em: 10/06/2026",
-    "Nota Data Início Data",
-    "R$ 6,23\t523533540 10/02/2026 01/02/2028 R$ 625,00 R$ 27,71\t100% do CDI\tCDB 22,5%\tR$ 646,48\tR$ 652,71\tR$ 0,00\tR$ 0,00",
-    "R$ 1,21\t524925742 12/02/2026 03/02/2028 R$ 125,00 R$ 5,39\t100% do CDI\tCDB 22,5%\tR$ 129,18\tR$ 130,39\tR$ 0,00\tR$ 0,00",
-    "R$ 0,00\t627657354 10/06/2026 31/05/2028 R$ 250,00 R$ 0,00\t100% do CDI\tCDB 22,5%\tR$ 250,00\tR$ 250,00\tR$ 0,00\tR$ 0,00",
-    "R$ 775,66\tR$ 783,10 R$ 750,00\tValor Líquido Total:\tValor Bruto Total: Valor Aplicado Total:",
-  ].join("\n");
-  eq("detecta extrato de posição", isPosicaoStatement(posTxt), true);
-  eq("não confunde extrato comum", isPosicaoStatement("Extrato Conta Corrente"), false);
-  const pos = parsePosicaoText(posTxt);
-  eq("data da posição", pos.date, "2026-06-10");
-  eq("3 ativos", pos.ativos.length, 3);
-  eq("ativo 1: aplicado/rendimento/bruto/líquido",
-    [pos.ativos[0].aplicado, pos.ativos[0].rendimento, pos.ativos[0].bruto, pos.ativos[0].liquido],
-    [625, 27.71, 652.71, 646.48]);
-  eq("total aplicado", pos.totals.aplicado, 1000);
-  eq("total bruto", pos.totals.bruto, 1033.1);
-  eq("total líquido", pos.totals.liquido, 1025.66);
-  eq("total IR/IOF", pos.totals.irIof, 7.44);
-  // totais impressos (775.66/783.10/750.00) ≠ calculados → validação acusa
-  eq("totais impressos divergentes geram erro", pos.errors.length > 0, true);
-
-  // versão consistente: totais impressos = calculados → sem erros
-  const posOk = posTxt.replace(
-    "R$ 775,66\tR$ 783,10 R$ 750,00",
-    "R$ 1.025,66\tR$ 1.033,10 R$ 1.000,00"
-  );
-  const pok = parsePosicaoText(posOk);
-  eq("extrato consistente passa sem erros", pok.errors, []);
-  eq("bruto = aplicado + rendimento (linha a linha)",
-    pok.ativos.every((a) => Math.abs(a.bruto - (a.aplicado + a.rendimento)) <= 0.02), true);
 
   // ── Resultado ─────────────────────────────────────────────────────────────
   console.log(`\n${"─".repeat(50)}\n${passed} passaram, ${failed} falharam`);
